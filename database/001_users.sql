@@ -2,7 +2,7 @@
 -- User stories: US-01, US-03, US-04, US-05
 -- Creates the users table for usernmae + passphrase authentication
 
-CREATE TABLE IF NOT EXISTS public.users {
+CREATE TABLE IF NOT EXISTS public.users (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     username text UNIQUE NOT NULL,
     passphrase_hash text NOT NULL,
@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS public.users {
     home_currency text NOT NULL DEFAULT 'SGD',
     created_at timestamptz NOT NULL DEFAULT now(),
     last_seen_at timestampz NULL
-};
+);
 
 -- Fast username lookup for collision check (US-05) and login (US-03)
 CREATE UNIQUE INDEX IF NOT EXISTS users_username_id on public.users (username);
