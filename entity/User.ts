@@ -3,7 +3,7 @@
 export interface User {
     id: string
     username: string
-    passphrase: string
+    passphrase_hash: string
     display_name: string | null
     home_currency: string
     created_at: string
@@ -13,7 +13,7 @@ export interface User {
 // send to the DB on registration
 export interface CreateUserPayLoad {
     username: string
-    passphrase: string
+    passphrase_hash: string
     display_name?: string
     home_currency?: string
 }

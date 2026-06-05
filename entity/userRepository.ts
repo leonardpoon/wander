@@ -24,7 +24,7 @@ export const userRepository = {
             .from('users')
             .insert({
                 username: payload.username,
-                passphrase: payload.passphrase,
+                passphrase_hash: payload.passphrase_hash,
                 display_name: payload.display_name ?? null,
                 home_currency: payload.home_currency ?? 'SGD',
             })
@@ -56,4 +56,16 @@ export const userRepository = {
         
             if (error) throw new Error(`updateLastSeen failed: ${error.message}`)
     },
+
+    // US-01: fetch safe user by ID used to restore session on app load
+    async findById(userId: string): Promise<SafeUser | null> {
+        const {data, error} = await supabase
+            .from('users')
+            .select('id, username, display_name, home_currency, created_at, last_seen_at')
+            .eq('id', userId)
+            .maybeSingle()
+
+        if (error) throw new Error(`findById failed: ${error.message}`)
+        return data as SafeUser | null
+    }
 }
