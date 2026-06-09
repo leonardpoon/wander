@@ -17,6 +17,11 @@ import {
     CreateTodoColumnPayload,
 } from '../entity/Cards'
 
+const realtimeChannels = new Map<
+    string,
+    { channel: ReturnType<typeof supabase.channel>; refs: number }
+>()
+
 export function useCards(tripId: string | null) {
     const { user } = useSessionStore()
     const {
@@ -114,6 +119,18 @@ export function useCards(tripId: string | null) {
     useEffect(() => {
         if (!tripId) return
 
+        const existing = realtimeChannels.get(tripId)
+        if (existing) {
+            existing.refs += 1
+            return () => {
+                existing.refs -= 1
+                if (existing.refs === 0) {
+                    realtimeChannels.delete(tripId)
+                    supabase.removeChannel(existing.channel)
+                }
+            }
+        }
+
         const channel = supabase
             .channel(`trip-cards-${tripId}`)
 
@@ -179,9 +196,18 @@ export function useCards(tripId: string | null) {
 
             .subscribe()
 
+        realtimeChannels.set(tripId, { channel, refs: 1 })
+
         // cleanup — unsubscribe when tripId changes or component unmounts
         return () => {
-            supabase.removeChannel(channel)
+            const active = realtimeChannels.get(tripId)
+            if (!active) return
+
+            active.refs -= 1
+            if (active.refs === 0) {
+                realtimeChannels.delete(tripId)
+                supabase.removeChannel(active.channel)
+            }
         }
     }, [tripId])
 

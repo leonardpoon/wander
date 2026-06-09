@@ -66,7 +66,7 @@ export interface UpdateCardPayload {
     lng?: number | null
     fixed_time?: boolean
     time_value?: string | null
-    budget_amount?: string | null
+    budget_amount?: number | null
     notes?: string | null
     position?: number
 }

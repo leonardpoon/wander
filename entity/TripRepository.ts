@@ -75,7 +75,7 @@ export const tripRepository = {
     // US-06: bulk insert auto-generated columns
     async createColumns(columns: CreateColumnPayload[]): Promise<TripColumn[]> {
         const {data, error} = await supabase
-            .from('trip_columns')
+            .from('columns')
             .insert(columns)
             .select()
 
@@ -92,6 +92,17 @@ export const tripRepository = {
             .order('position', {ascending: true})
 
         if (error) throw new Error(`findColumnsByTrip failed: ${error.message}`)
+        return data as TripColumn[]
+    },
+
+    async findColumns(tripId: string): Promise<TripColumn[]> {
+        const { data, error } = await supabase
+            .from('columns')
+            .select('*')
+            .eq('trip_id', tripId)
+            .order('position', { ascending: true })
+
+        if (error) throw new Error(`findColumns failed: ${error.message}`)
         return data as TripColumn[]
     },
 }

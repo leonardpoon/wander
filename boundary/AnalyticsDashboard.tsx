@@ -1,0 +1,279 @@
+// boundary/AnalyticsDashboard.tsx
+// US-23 to US-27: budget analytics + FX conversion
+// recharts for bar charts — already in your stack
+
+import { useState, useEffect } from 'react'
+import {
+    BarChart,
+    Bar,
+    XAxis,
+    YAxis,
+    Tooltip,
+    ResponsiveContainer,
+    Cell,
+} from 'recharts'
+import { TrendingUp, DollarSign, Calendar, Activity } from 'lucide-react'
+import { useCards } from '../controller/useCards'
+import { fxService, BudgetSummary } from '../controller/fxService'
+
+interface AnalyticsDashboardProps {
+    tripId:       string
+    tripCurrency: string
+    homeCurrency: string
+    dayCount:     number
+}
+
+const CATEGORY_COLOURS = {
+    travel:   'var(--category-travel)',
+    sightsee: 'var(--category-sightsee)',
+    shopping: 'var(--category-shopping)',
+    eating:   'var(--category-eating)',
+}
+
+export function AnalyticsDashboard({
+    tripId,
+    tripCurrency,
+    homeCurrency,
+    dayCount,
+}: AnalyticsDashboardProps) {
+    const { cards, isLoading } = useCards(tripId)
+
+    const [summary,        setSummary]        = useState<BudgetSummary | null>(null)
+    const [loadingSummary, setLoadingSummary] = useState(false)
+
+    useEffect(() => {
+        if (cards.length === 0) return
+
+        async function loadSummary() {
+            setLoadingSummary(true)
+            const result = await fxService.getBudgetSummary(
+                cards,
+                tripCurrency,
+                homeCurrency
+            )
+            setSummary(result)
+            setLoadingSummary(false)
+        }
+
+        loadSummary()
+    }, [cards, tripCurrency, homeCurrency])
+
+    // category breakdown data for bar chart
+    const categoryData = summary ? [
+        { name: 'Travel',   amount: summary.byCategory.travel,   key: 'travel' },
+        { name: 'Sightsee', amount: summary.byCategory.sightsee, key: 'sightsee' },
+        { name: 'Shopping', amount: summary.byCategory.shopping, key: 'shopping' },
+        { name: 'Eating',   amount: summary.byCategory.eating,   key: 'eating' },
+    ] : []
+
+    // daily spend data for bar chart
+    const dailyData = cards.reduce((acc, card) => {
+        if (!card.budget_amount) return acc
+        // get date from column — we use position as a proxy for day number
+        const dayKey = `Day ${card.position + 1}`
+        const existing = acc.find((d) => d.day === dayKey)
+        if (existing) {
+            existing.amount += card.budget_amount
+        } else {
+            acc.push({ day: dayKey, amount: card.budget_amount })
+        }
+        return acc
+    }, [] as { day: string; amount: number }[])
+
+    if (isLoading || loadingSummary) {
+        return (
+            <div className="flex items-center justify-center h-full">
+                <p style={{ color: 'var(--muted-foreground)', fontSize: 14 }}>
+                    Loading analytics…
+                </p>
+            </div>
+        )
+    }
+
+    return (
+        <div
+            className="h-full overflow-y-auto"
+            style={{ padding: 24 }}
+        >
+            <h2
+                style={{
+                    fontFamily:    "'Plus Jakarta Sans', sans-serif",
+                    fontWeight:    700,
+                    fontSize:      20,
+                    color:         'var(--foreground)',
+                    letterSpacing: '-0.02em',
+                    marginBottom:  20,
+                }}
+            >
+                Trip Analytics
+            </h2>
+
+            {/* Overview cards */}
+            <div
+                className="grid gap-4 mb-8"
+                style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}
+            >
+                <StatCard
+                    icon={<Calendar size={16} />}
+                    label="Total Days"
+                    value={`${dayCount}`}
+                    accent="var(--accent)"
+                />
+                <StatCard
+                    icon={<Activity size={16} />}
+                    label="Activities"
+                    value={`${cards.length}`}
+                    accent="var(--category-sightsee)"
+                />
+                <StatCard
+                    icon={<DollarSign size={16} />}
+                    label={`Budget (${tripCurrency})`}
+                    value={summary
+                        ? summary.totalBudget.toLocaleString()
+                        : '—'
+                    }
+                    accent="var(--category-travel)"
+                />
+                <StatCard
+                    icon={<TrendingUp size={16} />}
+                    label={`Budget (${homeCurrency})`}
+                    value={summary
+                        ? summary.totalConverted.toLocaleString()
+                        : '—'
+                    }
+                    accent="var(--category-eating)"
+                    sub={tripCurrency !== homeCurrency ? `@ ${tripCurrency}/${homeCurrency}` : undefined}
+                />
+            </div>
+
+            {/* Budget by category */}
+            {summary && summary.totalBudget > 0 && (
+                <div
+                    className="rounded-2xl p-6 mb-6"
+                    style={{
+                        background: 'var(--card)',
+                        border:     '1px solid var(--border)',
+                    }}
+                >
+                    <h3
+                        style={{
+                            fontFamily: "'Plus Jakarta Sans', sans-serif",
+                            fontWeight: 700,
+                            fontSize:   14,
+                            color:      'var(--foreground)',
+                            marginBottom: 16,
+                        }}
+                    >
+                        Budget by Category
+                    </h3>
+
+                    <ResponsiveContainer width="100%" height={200}>
+                        <BarChart data={categoryData} barSize={40}>
+                            <XAxis
+                                dataKey="name"
+                                tick={{ fontSize: 12, fill: 'var(--muted-foreground)' }}
+                                axisLine={false}
+                                tickLine={false}
+                            />
+                            <YAxis
+                                tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }}
+                                axisLine={false}
+                                tickLine={false}
+                            />
+                            <Tooltip
+                                contentStyle={{
+                                    background:   'var(--card)',
+                                    border:       '1px solid var(--border)',
+                                    borderRadius: 8,
+                                    fontSize:     12,
+                                }}
+                                formatter={(value) => [
+                                    `${tripCurrency} ${Number(value ?? 0).toLocaleString()}`,
+                                    'Budget',
+                                ]}
+                            />
+                            <Bar dataKey="amount" radius={[6, 6, 0, 0]}>
+                                {categoryData.map((entry) => (
+                                    <Cell
+                                        key={entry.key}
+                                        fill={CATEGORY_COLOURS[entry.key as keyof typeof CATEGORY_COLOURS]}
+                                    />
+                                ))}
+                            </Bar>
+                        </BarChart>
+                    </ResponsiveContainer>
+                </div>
+            )}
+
+            {/* Empty state */}
+            {(!summary || summary.totalBudget === 0) && (
+                <div
+                    className="rounded-2xl p-8 text-center"
+                    style={{
+                        background: 'var(--card)',
+                        border:     '1px dashed var(--border)',
+                    }}
+                >
+                    <DollarSign
+                        size={28}
+                        style={{ color: 'var(--muted-foreground)', margin: '0 auto 8px' }}
+                    />
+                    <p style={{ fontSize: 14, fontWeight: 500, color: 'var(--muted-foreground)' }}>
+                        No budget data yet
+                    </p>
+                    <p style={{ fontSize: 12, color: 'var(--muted-foreground)', marginTop: 4 }}>
+                        Add budget amounts to cards to see the breakdown
+                    </p>
+                </div>
+            )}
+        </div>
+    )
+}
+
+// ─── StatCard ─────────────────────────────────────────────────────────────────
+
+interface StatCardProps {
+    icon:   React.ReactNode
+    label:  string
+    value:  string
+    accent: string
+    sub?:   string
+}
+
+function StatCard({ icon, label, value, accent, sub }: StatCardProps) {
+    return (
+        <div
+            className="rounded-2xl p-4"
+            style={{
+                background: 'var(--card)',
+                border:     '1px solid var(--border)',
+            }}
+        >
+            <div
+                className="flex items-center gap-2 mb-3"
+                style={{ color: accent }}
+            >
+                {icon}
+                <span style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                    {label}
+                </span>
+            </div>
+            <p
+                style={{
+                    fontFamily:    "'JetBrains Mono', monospace",
+                    fontWeight:    700,
+                    fontSize:      22,
+                    color:         'var(--foreground)',
+                    letterSpacing: '-0.02em',
+                }}
+            >
+                {value}
+            </p>
+            {sub && (
+                <p style={{ fontSize: 10, color: 'var(--muted-foreground)', marginTop: 2 }}>
+                    {sub}
+                </p>
+            )}
+        </div>
+    )
+}

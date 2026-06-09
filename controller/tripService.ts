@@ -6,6 +6,7 @@ import {destinationRepository} from '../entity/destinationRepository'
 import {SafeTrip} from '../entity/Trip'
 import {Destination, CreateDestinationPayload} from '../entity/Destination'
 import {CreateColumnPayload} from '../entity/Column'
+import { TripColumn } from '../entity/Column'
 
 
 const BCRYPT_ROUNDS = 12
@@ -93,119 +94,40 @@ async function generateUniqueRoomCode(): Promise<string> {
 export const tripService = {
 
     // US-06, US-07, US-08, US-09
-    async crateTrip(payload: {
-        owner_id: string
-        name: string
+    async createTrip(payload: {
+        owner_id:     string
+        name:         string
         destinations: {
-            name: string
-            countryCode: string
+            name:          string
+            countryCode:   string
             localCurrency: string
-            colourHex: string
-            startDate: string
-            endDate: string
+            colourHex:     string
+            startDate:     string
+            endDate:       string
         }[]
         primaryCurrency?: string
-        // US-09: 4 digit pin for joining via room code
-        pin: string
-    }): Promise<{trip: SafeTrip, destinations: Destination[]}> {
-
-        // validate PIN is 4 digits
-        if (!/^\d{4}$/.test(payload.pin)) {
-            throw new Error('PIN must be exactly 4 digits')
-        }
-
-        // validate at least one destination
-        if (!payload.destinations.length) {
-            throw new Error('At least one destination is required')
-        }
-
-        // Derive trip start and end from last destination dates
-        const tripStartDate = payload.destinations[0].startDate
-        const tripEndDate = payload.destinations[payload.destinations.length - 1].endDate
-
-        // validate date range
-        if (new Date(tripStartDate) > new Date(tripEndDate)) {
-            throw new Error('Trip start date must be before end date')
-        }
-
-        // US-07: fetch Unsplash photo for primary destination
-        const photoUrl = await fetchUnsplashPhoto(
-            payload.destinations[0].name,
-            payload.destinations[0].startDate,
-            payload.destinations[0].countryCode 
-        )
-
-        // US-09: generate unique room code
-        const roomCode = await generateUniqueRoomCode()
-        const pinHash = await bcrypt.hash(payload.pin, BCRYPT_ROUNDS)
-
-        // insert trip row
-        const trip = await tripRepository.createTrip({
-            owner_id: payload.owner_id,
-            name: payload.name,
-            start_date: tripStartDate,
-            end_date: tripEndDate,
-            primary_currency: payload.primaryCurrency ?? 'SGD',
-            photo_url: photoUrl,
-            room_code: roomCode,
-            pin_hash: pinHash,
+        pin:          string
+    }): Promise<{ trip: SafeTrip; destinations: Destination[] }> {
+        const response = await fetch('/api/trip/create', {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify(payload),
         })
-
-        // US-08: insert destination in order
-        const destinationPayloads: CreateDestinationPayload[] = payload.destinations.map(
-            (dest, index) => ({
-                trip_id: trip.id,
-                name: dest.name,
-                country_code: dest.countryCode,
-                local_currency: dest.localCurrency,
-                colour_hex: dest.colourHex,
-                position: index,
-                start_date: dest.startDate,
-                end_date: dest.endDate,
-            })
-        )
-
-        const destinations = await destinationRepository.createDestinations(destinationPayloads)
-
-        // US-06: auto-generate one kanban column per date per destination
-        const columnPayloads: CreateColumnPayload[] = []
-        let globalPosition = 0
-
-        for (const dest of destinations) {
-            const dates = getDateRange(dest.start_date, dest.end_date)
-            for (const date of dates) {
-                columnPayloads.push({
-                    trip_id: trip.id,
-                    destination_id: dest.id,
-                    date,
-                    position: globalPosition,
-                })
-                globalPosition++
-            }
-        }
-        await tripRepository.createColumns(columnPayloads)
-
-        // add owner as first trip member
-        await tripRepository.addMember(trip.id, payload.owner_id, 'owner')
-
-        return {trip, destinations}
-    },
+        const data = await response.json()
+        if (!response.ok) throw new Error(data.error ?? 'Failed to create trip')
+        return data
+},
 
     // US-09: verify PIN when joining via room code
     async verifyPin(roomCode: string, pin: string): Promise<SafeTrip | null> {
-        const trip = await tripRepository.findByRoomCode(roomCode)
-        if (!trip) {
-            throw new Error('Room code not found. Check the code and try again.')
-        }
-
-        const match = await bcrypt.compare(pin, trip.pin_hash)
-        if (!match) {
-            throw new Error('Incorrect PIN. Please try again.')
-        }
-
-        // return safe trip
-        const {pin_hash, ...safeTrip} = trip
-        return safeTrip as SafeTrip
+        const response = await fetch('/api/trip/verify-pin', {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify({ roomCode, pin }),
+        })
+        const data = await response.json()
+        if (!response.ok) throw new Error(data.error ?? 'Verification failed')
+        return data as SafeTrip
     },
 
     // US-10: delete trip 
@@ -219,6 +141,35 @@ export const tripService = {
     // fetch all trips for a user
     async getUserTrips(userId: string): Promise<SafeTrip[]> {
         return await tripRepository.findByUser(userId)
+    },
+    // fetch a single trip by ID
+    async getTripById(tripId: string): Promise<SafeTrip> {
+    const trip = await tripRepository.findById(tripId)
+    if (!trip) throw new Error('Trip not found')
+    // trip is a full Trip with pin_hash — strip it before returning
+    const { pin_hash, ...safeTrip } = trip as any
+    return {
+        ...safeTrip,
+        accent_color:        safeTrip.theme_colour,
+        hero_image_url:      safeTrip.photo_url,
+        home_currency:       safeTrip.home_currency ?? null,
+        primary_destination: null,
+    } as SafeTrip
+},
+
+    // fetch destinations for a trip
+    async getDestinations(tripId: string): Promise<Destination[]> {
+        return await destinationRepository.findByTrip(tripId)
+    },
+
+    // fetch columns for a trip
+    async getColumns(tripId: string): Promise<TripColumn[]> {
+        return await tripRepository.findColumns(tripId)
+    },
+
+    // alias for getUserTrips — used in index.tsx
+    async getTripsByUser(userId: string): Promise<SafeTrip[]> {
+        return await this.getUserTrips(userId)
     },
 
 }
