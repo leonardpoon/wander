@@ -1,0 +1,138 @@
+# US-46 — dbt tests for all models
+# Tests run after every dbt run to catch data quality issues early
+# Covers: not_null, unique, accepted_values, relationships
+
+version: 2
+
+models:
+  # ---------------------------------------------------------------
+  # STAGING TESTS
+  # ---------------------------------------------------------------
+  - name: stg_weather_events
+    description: "Cleaned and renamed raw weather events from Open-Meteo"
+    columns:
+      - name: weather_event_id
+        tests:
+          - not_null
+          - unique
+      - name: destination
+        tests:
+          - not_null
+      - name: forecast_date
+        tests:
+          - not_null
+      - name: temp_max_c
+        tests:
+          - not_null
+      - name: temp_min_c
+        tests:
+          - not_null
+      - name: condition
+        tests:
+          - not_null
+      - name: fetched_at
+        tests:
+          - not_null
+
+  - name: stg_exchange_rates
+    description: "Cleaned and renamed raw exchange rates from Frankfurter"
+    columns:
+      - name: exchange_rate_id
+        tests:
+          - not_null
+          - unique
+      - name: base_currency
+        tests:
+          - not_null
+      - name: target_currency
+        tests:
+          - not_null
+      - name: rate
+        tests:
+          - not_null
+      - name: fetched_at
+        tests:
+          - not_null
+
+  # ---------------------------------------------------------------
+  # INTERMEDIATE TESTS
+  # ---------------------------------------------------------------
+  - name: int_weather_deduped
+    description: "Deduplicated weather events — one row per destination per date"
+    columns:
+      - name: weather_event_id
+        tests:
+          - not_null
+      - name: destination
+        tests:
+          - not_null
+      - name: forecast_date
+        tests:
+          - not_null
+
+  - name: int_fx_scd
+    description: "SCD Type 2 FX rates — full history with valid_from and valid_to"
+    columns:
+      - name: base_currency
+        tests:
+          - not_null
+      - name: target_currency
+        tests:
+          - not_null
+      - name: rate
+        tests:
+          - not_null
+      - name: valid_from
+        tests:
+          - not_null
+      - name: is_current
+        tests:
+          - not_null
+          - accepted_values:
+              values: [true, false]
+
+  # ---------------------------------------------------------------
+  # MART TESTS
+  # ---------------------------------------------------------------
+  - name: mart_weather_forecasts
+    description: "Final weather forecasts table served to the Wander app"
+    columns:
+      - name: destination
+        tests:
+          - not_null
+      - name: forecast_date
+        tests:
+          - not_null
+      - name: temp_max_c
+        tests:
+          - not_null
+      - name: temp_min_c
+        tests:
+          - not_null
+      - name: condition
+        tests:
+          - not_null
+      - name: updated_at
+        tests:
+          - not_null
+
+  - name: mart_fx_rates
+    description: "Final FX rates table served to the Wander app"
+    columns:
+      - name: base_currency
+        tests:
+          - not_null
+      - name: target_currency
+        tests:
+          - not_null
+      - name: rate
+        tests:
+          - not_null
+      - name: is_current
+        tests:
+          - not_null
+          - accepted_values:
+              values: [true, false]
+      - name: valid_from
+        tests:
+          - not_null

@@ -4,3 +4,4 @@ out/
 dist-electron/
 release/
 .env.local
+dbt/profiles.yml

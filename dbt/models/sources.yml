@@ -1,0 +1,30 @@
+# US-43 to US-44
+
+version: 2
+
+sources:
+  - name: raw
+    schema: raw
+    description: "Raw ingestion tables populated by pg_cron jobs"
+
+    tables:
+      - name: weather_events
+        description: "Append only weather forecast from Open-Meteo API"
+        columns:
+          - name: id
+          - name: destination
+          - name: fetched_at
+          - name: forecast_date
+          - name: temp_max
+          - name: temp_min
+          - name: condition
+          - name: raw_payload
+
+      - name: exchange_rates
+        description: "Append only exchange rates from ExchangeRate-API"
+        columns:
+          - name: id
+          - name: base_currency
+          - name: target_currency
+          - name: fetched_at
+          - name: raw_payload
