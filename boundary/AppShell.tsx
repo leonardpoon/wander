@@ -4,17 +4,12 @@
 import { useState } from 'react'
 import { Sidebar } from './Sidebar'
 import { TopBar } from './Topbar'
+import { CardCategoryOption } from '../entity/CardCategories'
 
 export type ViewType = 'board' | 'map' | 'analytics' | 'packing' | 'todo'
 export type TabType = 'planner' | 'todo'
-export type CategoryKey = 'travel' | 'sightsee' | 'shopping' | 'eating'
-
-export interface CategoryFilters {
-    travel:   boolean
-    sightsee: boolean
-    shopping: boolean
-    eating:   boolean
-}
+export type CategoryKey = string
+export type CategoryFilters = Record<string, boolean>
 
 interface AppShellProps {
     tripName:     string
@@ -30,6 +25,12 @@ interface AppShellProps {
     onTabChange:  (tab: TabType) => void
     onShare:      () => void
     onExport:     () => void
+    categoryOptions: CardCategoryOption[]
+    categoryFilters: CategoryFilters
+    onToggleCategory: (cat: CategoryKey) => void
+    onAddCategory: (label: string) => void
+    tripCode?:     string | null
+    tripPin?:      string | null
 }
 
 export function AppShell({
@@ -46,19 +47,14 @@ export function AppShell({
     onTabChange,
     onShare,
     onExport,
+    categoryOptions,
+    categoryFilters,
+    onToggleCategory,
+    onAddCategory,
+    tripCode,
+    tripPin,
 }: AppShellProps) {
-    const [categoryFilters, setCategoryFilters] = useState<CategoryFilters>({
-        travel:   true,
-        sightsee: true,
-        shopping: true,
-        eating:   true,
-    })
-
     const [darkMode, setDarkMode] = useState(false)
-
-    function toggleCategory(cat: CategoryKey) {
-        setCategoryFilters((prev) => ({ ...prev, [cat]: !prev[cat] }))
-    }
 
     function toggleDarkMode() {
         setDarkMode((prev) => {
@@ -79,9 +75,11 @@ export function AppShell({
                 accentColor={accentColor}
                 activeView={activeView}
                 categoryFilters={categoryFilters}
+                categoryOptions={categoryOptions}
                 darkMode={darkMode}
                 onViewChange={onViewChange}
-                onToggleCategory={toggleCategory}
+                onToggleCategory={onToggleCategory}
+                onAddCategory={onAddCategory}
                 onToggleDarkMode={toggleDarkMode}
             />
 
@@ -95,6 +93,8 @@ export function AppShell({
                     onTabChange={onTabChange}
                     onShare={onShare}
                     onExport={onExport}
+                    tripCode={tripCode}
+                    tripPin={tripPin}
                 />
                 <main className="flex-1 overflow-hidden">
                     {children}

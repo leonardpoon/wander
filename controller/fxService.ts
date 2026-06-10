@@ -22,12 +22,7 @@ export interface BudgetSummary {
     homeCurrency: string
     totalBudget: number
     totalConverted: number
-    byCategory: {
-        travel: number
-        sightsee: number
-        shopping: number
-        eating: number
-    }
+    byCategory: Record<string, number>
 }
 
 // Frankfurter Fetch
@@ -132,20 +127,12 @@ export const fxService = {
         tripCurrency: string,
         homeCurrency: string
     ): Promise<BudgetSummary> {
-        const byCategory = {
-            travel: 0,
-            sightsee: 0,
-            shopping: 0,
-            eating: 0,
-        }
+        const byCategory: Record<string, number> = {}
 
         // sum budget amounts by category
         for (const card of cards) {
             if (!card.budget_amount) continue 
-            const cat = card.category as keyof typeof byCategory
-            if (cat in byCategory) {
-                byCategory[cat] += card.budget_amount
-            }
+            byCategory[card.category] = (byCategory[card.category] ?? 0) + card.budget_amount
         }
 
         const totalBudget = Object.values(byCategory).reduce((a, b) => a + b, 0)

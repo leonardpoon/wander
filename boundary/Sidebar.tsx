@@ -2,6 +2,7 @@
 // US-11 to US-27: left sidebar — trip info, view switchers, category filters
 
 import {
+    Plus,
     LayoutGrid,
     Map,
     BarChart2,
@@ -12,8 +13,11 @@ import {
     Eye,
     ShoppingBag,
     UtensilsCrossed,
+    Tag,
 } from 'lucide-react'
+import { useState } from 'react'
 import { ViewType, CategoryKey, CategoryFilters } from './AppShell'
+import { CardCategoryOption } from '../entity/CardCategories'
 
 interface SidebarProps {
     tripName:         string
@@ -22,9 +26,11 @@ interface SidebarProps {
     accentColor:      string
     activeView:       ViewType
     categoryFilters:  CategoryFilters
+    categoryOptions:  CardCategoryOption[]
     darkMode:         boolean
     onViewChange:     (view: ViewType) => void
     onToggleCategory: (cat: CategoryKey) => void
+    onAddCategory:    (label: string) => void
     onToggleDarkMode: () => void
 }
 
@@ -35,12 +41,16 @@ const VIEW_ITEMS: { id: ViewType; label: string; icon: React.ReactNode }[] = [
     { id: 'packing',   label: 'Packing List', icon: <CheckSquare size={16} /> },
 ]
 
-const CATEGORY_ITEMS: { id: CategoryKey; label: string; icon: React.ReactNode; color: string }[] = [
-    { id: 'travel',   label: 'Travel',   icon: <Plane size={14} />,           color: 'var(--category-travel)' },
-    { id: 'sightsee', label: 'Sightsee', icon: <Eye size={14} />,             color: 'var(--category-sightsee)' },
-    { id: 'shopping', label: 'Shopping', icon: <ShoppingBag size={14} />,     color: 'var(--category-shopping)' },
-    { id: 'eating',   label: 'Eating',   icon: <UtensilsCrossed size={14} />, color: 'var(--category-eating)' },
-]
+const FALLBACK_HERO_IMAGE =
+    'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=900&q=80'
+
+function getCategoryIcon(categoryId: string): React.ReactNode {
+    if (categoryId === 'travel') return <Plane size={14} />
+    if (categoryId === 'sightsee') return <Eye size={14} />
+    if (categoryId === 'shopping') return <ShoppingBag size={14} />
+    if (categoryId === 'eating') return <UtensilsCrossed size={14} />
+    return <Tag size={14} />
+}
 
 export function Sidebar({
     tripName,
@@ -49,16 +59,26 @@ export function Sidebar({
     accentColor,
     activeView,
     categoryFilters,
+    categoryOptions,
     darkMode,
     onViewChange,
     onToggleCategory,
+    onAddCategory,
     onToggleDarkMode,
 }: SidebarProps) {
+    const [newFilterName, setNewFilterName] = useState('')
+
+    function handleAddFilter() {
+        const label = newFilterName.trim()
+        if (!label) return
+        onAddCategory(label)
+        setNewFilterName('')
+    }
+
     return (
         <div
-            className="flex flex-col h-full shrink-0"
+            className="wander-sidebar flex flex-col h-full shrink-0"
             style={{
-                width: 240,
                 background: 'var(--sidebar)',
                 borderRight: '1px solid var(--sidebar-border)',
             }}
@@ -68,18 +88,16 @@ export function Sidebar({
 
             {/* Trip hero + name */}
             <div className="p-4">
-                {heroImage && (
-                    <div
-                        className="w-full rounded-xl overflow-hidden mb-3"
-                        style={{ height: 100 }}
-                    >
-                        <img
-                            src={heroImage}
-                            alt={destination}
-                            className="w-full h-full object-cover"
-                        />
-                    </div>
-                )}
+                <div
+                    className="w-full rounded-xl overflow-hidden mb-3"
+                    style={{ height: 100 }}
+                >
+                    <img
+                        src={heroImage ?? FALLBACK_HERO_IMAGE}
+                        alt={destination}
+                        className="w-full h-full object-cover"
+                    />
+                </div>
                 <h2
                     style={{
                         fontFamily: "'Plus Jakarta Sans', sans-serif",
@@ -142,7 +160,7 @@ export function Sidebar({
                 }}>
                     Filter
                 </p>
-                {CATEGORY_ITEMS.map((cat) => (
+                {categoryOptions.map((cat) => (
                     <button
                         key={cat.id}
                         onClick={() => onToggleCategory(cat.id)}
@@ -162,7 +180,7 @@ export function Sidebar({
                                 color: cat.color,
                             }}
                         >
-                            {cat.icon}
+                            {getCategoryIcon(cat.id)}
                         </span>
                         {cat.label}
                         {categoryFilters[cat.id] && (
@@ -173,6 +191,42 @@ export function Sidebar({
                         )}
                     </button>
                 ))}
+
+                <div className="mt-2 px-1">
+                    <div
+                        className="flex items-center gap-1 rounded-lg p-1"
+                        style={{ background: 'var(--sidebar-accent)' }}
+                    >
+                        <input
+                            value={newFilterName}
+                            onChange={(e) => setNewFilterName(e.target.value)}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter') handleAddFilter()
+                            }}
+                            placeholder="New filter"
+                            className="min-w-0 flex-1 rounded-md px-2 py-1.5 outline-none"
+                            style={{
+                                background: 'transparent',
+                                color: 'var(--sidebar-foreground)',
+                                fontSize: 12,
+                            }}
+                        />
+                        <button
+                            type="button"
+                            onClick={handleAddFilter}
+                            className="flex items-center justify-center rounded-md"
+                            style={{
+                                width: 28,
+                                height: 28,
+                                color: 'var(--sidebar-foreground)',
+                                background: 'rgba(255,255,255,0.08)',
+                            }}
+                            title="Add filter"
+                        >
+                            <Plus size={14} />
+                        </button>
+                    </div>
+                </div>
             </div>
 
             <div className="flex-1" />

@@ -5,6 +5,7 @@ import { tripRepository } from '../../../entity/TripRepository'
 import { destinationRepository } from '../../../entity/destinationRepository'
 import { CreateDestinationPayload } from '../../../entity/Destination'
 import { CreateColumnPayload } from '../../../entity/Column'
+import { fetchDestinationPhoto, geocodeDestination } from '../../../controller/destinationAssets'
 
 function generateRoomCode(): string {
     const chars  = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
@@ -48,6 +49,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         const tripEndDate   = destinations[destinations.length - 1].endDate
         const roomCode      = await generateUniqueRoomCode()
         const pinHash       = await bcrypt.hash(pin, 12)
+        const firstDestination = destinations[0]
+        const photoUrl = await fetchDestinationPhoto(
+            firstDestination.name,
+            firstDestination.startDate,
+            firstDestination.countryCode
+        )
 
         const trip = await tripRepository.createTrip({
             owner_id,
@@ -55,21 +62,27 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             start_date:       tripStartDate,
             end_date:         tripEndDate,
             primary_currency: primaryCurrency ?? 'SGD',
-            photo_url:        null,
+            photo_url:        photoUrl,
             room_code:        roomCode,
             pin_hash:         pinHash,
         })
 
-        const destPayloads: CreateDestinationPayload[] = destinations.map(
-            (dest: any, index: number) => ({
-                trip_id:        trip.id,
-                name:           dest.name,
-                country_code:   dest.countryCode,
-                local_currency: dest.localCurrency,
-                colour_hex:     dest.colourHex,
-                position:       index,
-                start_date:     dest.startDate,
-                end_date:       dest.endDate,
+        const destPayloads: CreateDestinationPayload[] = await Promise.all(
+            destinations.map(async (dest: any, index: number) => {
+                const coords = await geocodeDestination(dest.name, dest.countryCode)
+
+                return {
+                    trip_id:        trip.id,
+                    name:           dest.name,
+                    country_code:   dest.countryCode,
+                    local_currency: dest.localCurrency,
+                    colour_hex:     dest.colourHex,
+                    position:       index,
+                    start_date:     dest.startDate,
+                    end_date:       dest.endDate,
+                    lat:            coords?.lat ?? null,
+                    lng:            coords?.lng ?? null,
+                }
             })
         )
 

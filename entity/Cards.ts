@@ -3,8 +3,8 @@
 // US-33 to US-34: packling list
 // US-35 to US-38: to-do board
 
-// US-14: four top-level categories
-export type CardCategory = 'travel' | 'sightsee' | 'shopping' | 'eating'
+// US-14: top-level categories. Built-ins use known ids; trips can add custom ids.
+export type CardCategory = string
 
 // sub categories for eating
 export type EatingSubCategory = 'Breakfast' | 'Lunch' | 'Dinner' | 'Snack' | 'Cafe' | 'Bar' | 'Tea' | 'Brunch'

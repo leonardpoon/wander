@@ -137,7 +137,14 @@ export const mapService = {
             shopping: '#f59e0b',   // --color-category-shopping
             eating:   '#ef4444',   // --color-category-eating
         }
-        return colours[category] ?? '#6366f1'
+        if (colours[category]) return colours[category]
+
+        let hash = 0
+        for (const char of category) {
+            hash = (hash * 31 + char.charCodeAt(0)) % 360
+        }
+
+        return `hsl(${hash} 72% 46%)`
     },
 
     // US-20: check if a trip has any geocoded cards

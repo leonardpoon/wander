@@ -90,7 +90,11 @@ export const useCardStore = create<CardState>((set) => ({
     setCards: (cards) => set({ cards }),
 
     addCard: (card) =>
-        set((state) => ({ cards: [...state.cards, card] })),
+        set((state) => ({
+            cards: state.cards.some((c) => c.id === card.id)
+                ? state.cards.map((c) => (c.id === card.id ? card : c))
+                : [...state.cards, card],
+        })),
 
     updateCard: (card) =>
         set((state) => ({
@@ -134,7 +138,11 @@ export const useCardStore = create<CardState>((set) => ({
     setPackingItems: (packingItems) => set({ packingItems }),
 
     addPackingItem: (item) =>
-        set((state) => ({ packingItems: [...state.packingItems, item] })),
+        set((state) => ({
+            packingItems: state.packingItems.some((i) => i.id === item.id)
+                ? state.packingItems.map((i) => (i.id === item.id ? item : i))
+                : [...state.packingItems, item],
+        })),
 
     updatePackingItem: (item) =>
         set((state) => ({
@@ -151,7 +159,11 @@ export const useCardStore = create<CardState>((set) => ({
     setTodoColumns: (todoColumns) => set({ todoColumns }),
 
     addTodoColumn: (column) =>
-        set((state) => ({ todoColumns: [...state.todoColumns, column] })),
+        set((state) => ({
+            todoColumns: state.todoColumns.some((c) => c.id === column.id)
+                ? state.todoColumns.map((c) => (c.id === column.id ? column : c))
+                : [...state.todoColumns, column],
+        })),
 
     updateTodoColumn: (column) =>
         set((state) => ({
@@ -172,7 +184,11 @@ export const useCardStore = create<CardState>((set) => ({
     setTodoCards: (todoCards) => set({ todoCards }),
 
     addTodoCard: (card) =>
-        set((state) => ({ todoCards: [...state.todoCards, card] })),
+        set((state) => ({
+            todoCards: state.todoCards.some((c) => c.id === card.id)
+                ? state.todoCards.map((c) => (c.id === card.id ? card : c))
+                : [...state.todoCards, card],
+        })),
 
     updateTodoCard: (card) =>
         set((state) => ({

@@ -236,13 +236,12 @@ export function useCards(tripId: string | null) {
 
         try {
             setError(null)
-            // Realtime will add the card to local state via the subscription above
-            // so we don't call addCard here — avoids duplicates
-            await cardService.createCard({
+            const card = await cardService.createCard({
                 ...payload,
                 trip_id: tripId,
                 created_by: user.id,
             })
+            addCard(card)
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Failed to create card')
             throw err
@@ -256,8 +255,8 @@ export function useCards(tripId: string | null) {
     ) => {
         try {
             setError(null)
-            // Realtime handles the local state update
-            await cardService.updateCard(cardId, payload)
+            const card = await cardService.updateCard(cardId, payload)
+            updateCard(card)
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Failed to update card')
             throw err

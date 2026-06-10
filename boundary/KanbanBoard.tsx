@@ -11,7 +11,8 @@ import { useCards } from '../controller/useCards'
 import { useSessionStore } from '../controller/sessionStore'
 import { CategoryFilters } from './AppShell'
 import { WeatherForecast } from '../controller/weatherService'
-import { Card } from '../entity/Cards'
+import { Card, CardCategory } from '../entity/Cards'
+import { CardCategoryOption } from '../entity/CardCategories'
 
 interface ColumnData {
     id:          string
@@ -24,6 +25,7 @@ interface KanbanBoardProps {
     tripId:          string
     columns:         ColumnData[]
     categoryFilters: CategoryFilters
+    categoryOptions: CardCategoryOption[]
     // weather keyed by destination name
     weatherByDest:   Record<string, WeatherForecast[]>
     accentColor:     string
@@ -33,6 +35,7 @@ export function KanbanBoard({
     tripId,
     columns,
     categoryFilters,
+    categoryOptions,
     weatherByDest,
     accentColor,
 }: KanbanBoardProps) {
@@ -61,13 +64,24 @@ export function KanbanBoard({
     // filter cards by active category filters before passing to column
     function getFilteredCards(columnId: string): Card[] {
         return getCardsByColumn(columnId).filter(
-            (card) => categoryFilters[card.category as keyof CategoryFilters]
+            (card) => categoryFilters[card.category] !== false
         )
     }
 
     function handleAddCard(columnId: string) {
         setSidePanelColumnId(columnId)
         setActiveCard(null)
+    }
+
+    async function handleQuickAddCard(
+        columnId: string,
+        payload: { title: string; category: CardCategory }
+    ) {
+        await createCard({
+            column_id: columnId,
+            category: payload.category,
+            title: payload.title,
+        })
     }
 
     function handleEditCard(card: Card) {
@@ -86,12 +100,12 @@ export function KanbanBoard({
                 {/* Horizontally scrollable board */}
                 <div
                     ref={boardRef}
-                    className="flex h-full overflow-x-auto overflow-y-hidden"
+                    className="wander-board-scroll flex h-full overflow-x-auto overflow-y-hidden"
                     style={{
                         padding: '16px',
                         gap: 12,
                         // shrink when side panel is open
-                        width: sidePanelColumnId ? 'calc(100% - 420px)' : '100%',
+                        width: sidePanelColumnId ? 'calc(100% - var(--card-panel-width))' : '100%',
                         transition: 'width 0.25s ease',
                     }}
                 >
@@ -102,9 +116,11 @@ export function KanbanBoard({
                             date={col.date}
                             label={col.label}
                             cards={getFilteredCards(col.id)}
+                            categoryOptions={categoryOptions}
                             weather={getWeatherForColumn(col.destination, col.date)}
                             accentColor={accentColor}
                             onAddCard={() => handleAddCard(col.id)}
+                            onQuickAddCard={(payload) => handleQuickAddCard(col.id, payload)}
                             onEditCard={handleEditCard}
                             onMoveCard={moveCard}
                         />
@@ -128,6 +144,7 @@ export function KanbanBoard({
                         columnId={sidePanelColumnId}
                         card={activeCard}
                         columns={columns}
+                        categoryOptions={categoryOptions}
                         onSave={async (payload) => {
                             if (activeCard) {
                                 await editCard(activeCard.id, payload)

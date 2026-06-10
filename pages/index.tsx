@@ -7,20 +7,25 @@ import { useRouter } from 'next/router'
 import { useSessionStore } from '../controller/sessionStore'
 import { useAuth } from '../controller/useAuth'
 import { tripService } from '../controller/tripService'
+import { saveTripInvite } from '../controller/inviteStorage'
 import { SafeTrip } from '../entity/Trip'
-import { MapPin, Users, ArrowRight, Copy, Check, Loader } from 'lucide-react'
+import { MapPin, Users, ArrowRight, Copy, Check, Loader, KeyRound } from 'lucide-react'
+
+const FALLBACK_TRIP_IMAGE =
+    'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=900&q=80'
 
 type Screen =
     | 'landing'         // initial — two big buttons
     | 'host'            // enter username to create account
     | 'host-confirm'    // show generated passphrase
+    | 'login'           // returning user sign in
     | 'join'            // enter room code + PIN
     | 'trips'           // logged in — trip list
 
 export default function Home() {
     const router = useRouter()
     const { user } = useSessionStore()
-    const { register, restoreSession } = useAuth()
+    const { register, login, restoreSession } = useAuth()
 
     const [screen,      setScreen]      = useState<Screen>('landing')
     const [restoring,   setRestoring]   = useState(true)
@@ -31,6 +36,12 @@ export default function Home() {
     const [copied,      setCopied]      = useState(false)
     const [hostLoading, setHostLoading] = useState(false)
     const [hostError,   setHostError]   = useState<string | null>(null)
+
+    // login flow
+    const [loginUsername, setLoginUsername] = useState('')
+    const [loginPassphrase, setLoginPassphrase] = useState('')
+    const [loginLoading, setLoginLoading] = useState(false)
+    const [loginError, setLoginError] = useState<string | null>(null)
 
     // join flow
     const [roomCode,    setRoomCode]    = useState('')
@@ -74,17 +85,15 @@ export default function Home() {
 
     // ─── Host flow ────────────────────────────────────────────────────────────
 
-    // generate a random passphrase — 4 random words
+    // generate a short passphrase: one friendly word plus four digits
     function generatePassphrase(): string {
         const words = [
-            'apple', 'river', 'cloud', 'stone', 'flame', 'ocean', 'tiger',
-            'maple', 'solar', 'amber', 'crisp', 'noble', 'swift', 'lunar',
-            'cedar', 'frost', 'brave', 'vivid', 'grand', 'quiet', 'prism',
-            'bloom', 'coral', 'delta', 'ember', 'forge', 'glade', 'haven',
+            'apple', 'river', 'cloud', 'stone', 'ocean', 'maple', 'solar',
+            'amber', 'swift', 'lunar', 'cedar', 'bloom', 'coral', 'haven',
         ]
-        return Array.from({ length: 4 }, () =>
-            words[Math.floor(Math.random() * words.length)]
-        ).join('-')
+        const word = words[Math.floor(Math.random() * words.length)]
+        const digits = Math.floor(1000 + Math.random() * 9000)
+        return `${word}${digits}`
     }
 
     async function handleHost() {
@@ -134,6 +143,7 @@ export default function Home() {
                 pin.trim()
             )
             if (trip) {
+                saveTripInvite(trip.id, trip.room_code, pin.trim())
                 router.push(`/trip/${trip.id}`)
             }
         } catch (err) {
@@ -144,6 +154,25 @@ export default function Home() {
     }
 
     // ─── Screens ──────────────────────────────────────────────────────────────
+
+    async function handleLogin() {
+        if (!loginUsername.trim() || !loginPassphrase.trim()) {
+            setLoginError('Enter your username and passphrase')
+            return
+        }
+
+        setLoginLoading(true)
+        setLoginError(null)
+
+        try {
+            await login(loginUsername.trim(), loginPassphrase.trim())
+            setScreen('trips')
+        } catch (err) {
+            setLoginError(err instanceof Error ? err.message : 'Login failed')
+        } finally {
+            setLoginLoading(false)
+        }
+    }
 
     if (restoring) {
         return (
@@ -282,6 +311,21 @@ export default function Home() {
                         <ArrowRight size={16} style={{ color: '#8B5CF6' }} />
                     </button>
                 </div>
+
+                <button
+                    onClick={() => setScreen('login')}
+                    className="mt-6 flex items-center gap-2 rounded-xl px-4 py-2.5 transition-all"
+                    style={{
+                        background: 'var(--card)',
+                        border: '1px solid var(--border)',
+                        color: 'var(--foreground)',
+                        fontSize: 13,
+                        fontWeight: 700,
+                    }}
+                >
+                    <KeyRound size={15} />
+                    Sign in with passphrase
+                </button>
             </div>
         )
     }
@@ -364,6 +408,104 @@ export default function Home() {
                     >
                         {hostLoading ? 'Creating account…' : 'Continue'}
                     </button>
+                </div>
+            </div>
+        )
+    }
+
+    // Login — returning user
+    if (screen === 'login') {
+        return (
+            <div
+                className="min-h-screen flex items-center justify-center"
+                style={{ background: 'var(--background)' }}
+            >
+                <div
+                    className="rounded-2xl p-8"
+                    style={{
+                        width: 400,
+                        background: 'var(--card)',
+                        border: '1px solid var(--border)',
+                        boxShadow: '0 20px 60px rgba(0,0,0,0.1)',
+                    }}
+                >
+                    <button
+                        onClick={() => { setScreen('landing'); setLoginError(null); setLoginUsername(''); setLoginPassphrase('') }}
+                        style={{ fontSize: 12, color: 'var(--muted-foreground)', marginBottom: 20 }}
+                    >
+                        Back
+                    </button>
+
+                    <h2
+                        style={{
+                            fontFamily: "'Plus Jakarta Sans', sans-serif",
+                            fontWeight: 700,
+                            fontSize: 22,
+                            color: 'var(--foreground)',
+                            letterSpacing: '-0.02em',
+                            marginBottom: 6,
+                        }}
+                    >
+                        Sign in
+                    </h2>
+                    <p style={{ fontSize: 13, color: 'var(--muted-foreground)', marginBottom: 24, lineHeight: 1.5 }}>
+                        Use the passphrase you saved when creating your account.
+                    </p>
+
+                    <div className="flex flex-col" style={{ gap: 12 }}>
+                        <input
+                            autoFocus
+                            value={loginUsername}
+                            onChange={(e) => setLoginUsername(e.target.value)}
+                            placeholder="Username"
+                            className="w-full rounded-xl px-4 py-3 outline-none transition-all"
+                            style={{
+                                background: 'var(--input-background)',
+                                border: '1px solid var(--border)',
+                                color: 'var(--foreground)',
+                                fontSize: 14,
+                            }}
+                            onFocus={(e) => e.currentTarget.style.borderColor = 'var(--ring)'}
+                            onBlur={(e) => e.currentTarget.style.borderColor = 'var(--border)'}
+                        />
+
+                        <input
+                            value={loginPassphrase}
+                            onChange={(e) => setLoginPassphrase(e.target.value)}
+                            placeholder="Passphrase"
+                            className="w-full rounded-xl px-4 py-3 outline-none transition-all"
+                            style={{
+                                background: 'var(--input-background)',
+                                border: '1px solid var(--border)',
+                                color: 'var(--foreground)',
+                                fontSize: 14,
+                                fontFamily: "'JetBrains Mono', monospace",
+                            }}
+                            onFocus={(e) => e.currentTarget.style.borderColor = 'var(--ring)'}
+                            onBlur={(e) => e.currentTarget.style.borderColor = 'var(--border)'}
+                            onKeyDown={(e) => { if (e.key === 'Enter') handleLogin() }}
+                        />
+
+                        {loginError && (
+                            <p style={{ fontSize: 12, color: '#EF4444' }}>{loginError}</p>
+                        )}
+
+                        <button
+                            onClick={handleLogin}
+                            disabled={loginLoading || !loginUsername.trim() || !loginPassphrase.trim()}
+                            className="w-full rounded-xl py-3 transition-all"
+                            style={{
+                                background: 'var(--accent)',
+                                color: 'var(--accent-foreground)',
+                                fontSize: 14,
+                                fontWeight: 700,
+                                fontFamily: "'Plus Jakarta Sans', sans-serif",
+                                opacity: loginLoading || !loginUsername.trim() || !loginPassphrase.trim() ? 0.6 : 1,
+                            }}
+                        >
+                            {loginLoading ? 'Signing in...' : 'Sign in'}
+                        </button>
+                    </div>
                 </div>
             </div>
         )
@@ -696,9 +838,11 @@ export default function Home() {
                                 }}
                             >
                                 <div style={{ height: 120, background: 'var(--muted)', position: 'relative' }}>
-                                    {trip.photo_url && (
-                                        <img src={trip.photo_url} alt={trip.name} className="w-full h-full object-cover" />
-                                    )}
+                                    <img
+                                        src={trip.photo_url ?? FALLBACK_TRIP_IMAGE}
+                                        alt={trip.name}
+                                        className="w-full h-full object-cover"
+                                    />
                                     <div
                                         style={{
                                             position:   'absolute',

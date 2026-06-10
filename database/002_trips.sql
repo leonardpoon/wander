@@ -28,7 +28,9 @@ CREATE TABLE IF NOT EXISTS public.destinations (
     colour_hex text NOT NULL,
     position int NOT NULL,
     start_date date NOT NULL,
-    end_date date NOT NULL
+    end_date date NOT NULL,
+    lat numeric(9,6) NULL,
+    lng numeric(9,6) NULL
 );
 
 -- trip members

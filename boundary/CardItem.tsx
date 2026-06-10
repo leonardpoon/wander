@@ -18,43 +18,31 @@ import {
     Eye,
     ShoppingBag,
     UtensilsCrossed,
+    Tag,
 } from 'lucide-react'
 import { Card } from '../entity/Cards'
+import { CardCategoryOption, getCategoryColor, getCategoryLabel } from '../entity/CardCategories'
 
 const DND_CARD = 'CARD'
 
-const CATEGORY_CONFIG = {
-    travel: {
-        color:      'var(--category-travel)',
-        background: '#3B82F615',
-        icon:       <Plane size={11} />,
-    },
-    sightsee: {
-        color:      'var(--category-sightsee)',
-        background: '#22C55E15',
-        icon:       <Eye size={11} />,
-    },
-    shopping: {
-        color:      'var(--category-shopping)',
-        background: '#F59E0B15',
-        icon:       <ShoppingBag size={11} />,
-    },
-    eating: {
-        color:      'var(--category-eating)',
-        background: '#EC489915',
-        icon:       <UtensilsCrossed size={11} />,
-    },
-} as const
+function getCategoryIcon(categoryId: string): React.ReactNode {
+    if (categoryId === 'travel') return <Plane size={11} />
+    if (categoryId === 'sightsee') return <Eye size={11} />
+    if (categoryId === 'shopping') return <ShoppingBag size={11} />
+    if (categoryId === 'eating') return <UtensilsCrossed size={11} />
+    return <Tag size={11} />
+}
 
 interface CardItemProps {
     card:     Card
     index:    number
     columnId: string
+    categoryOptions: CardCategoryOption[]
     onEdit:   () => void
     onMove:   (cardId: string, targetColumnId: string, targetPosition: number) => Promise<void>
 }
 
-export function CardItem({ card, index, columnId, onEdit, onMove }: CardItemProps) {
+export function CardItem({ card, index, columnId, categoryOptions, onEdit, onMove }: CardItemProps) {
     const cardRef = useRef<HTMLDivElement>(null)
 
     // US-12: drag source
@@ -68,7 +56,8 @@ export function CardItem({ card, index, columnId, onEdit, onMove }: CardItemProp
 
     drag(cardRef)
 
-    const config = CATEGORY_CONFIG[card.category] ?? CATEGORY_CONFIG.travel
+    const categoryColor = getCategoryColor(card.category, categoryOptions)
+    const categoryLabel = getCategoryLabel(card.category, categoryOptions)
 
     // format time_value "14:30:00" → "14:30"
     function formatTime(timeVal: string): string {
@@ -82,7 +71,7 @@ export function CardItem({ card, index, columnId, onEdit, onMove }: CardItemProp
             style={{
                 background:  'var(--card)',
                 border:      `1px solid var(--border)`,
-                borderLeft:  `3px solid ${config.color}`,
+                borderLeft:  `3px solid ${categoryColor}`,
                 opacity:      isDragging ? 0.4 : 1,
                 boxShadow:    isDragging
                     ? 'none'
@@ -120,14 +109,14 @@ export function CardItem({ card, index, columnId, onEdit, onMove }: CardItemProp
                     <span
                         className="flex items-center gap-1 rounded-full px-2 py-0.5"
                         style={{
-                            background: config.background,
-                            color:      config.color,
+                            background: `${categoryColor}18`,
+                            color:      categoryColor,
                             fontSize:   10,
                             fontWeight: 600,
                         }}
                     >
-                        {config.icon}
-                        {card.category.charAt(0).toUpperCase() + card.category.slice(1)}
+                        {getCategoryIcon(card.category)}
+                        {categoryLabel}
                     </span>
 
                     {card.sub_category && (

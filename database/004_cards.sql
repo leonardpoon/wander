@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS public.cards (
     trip_id uuid NOT NULL REFERENCES public.trips(id) ON DELETE CASCADE,
 
     -- US-14: category and sub-category
-    category text NOT NULL CHECK (category IN ('travel', 'sightsee', 'shopping', 'eating')),
+    category text NOT NULL,
     sub_category text NULL,
 
     -- US-11: core fields

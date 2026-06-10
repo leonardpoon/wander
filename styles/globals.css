@@ -81,6 +81,7 @@
   --chart-3: #22C55E;
   --chart-4: #F59E0B;
   --chart-5: #EC4899;
+  --card-panel-width: min(420px, 38vw);
 }
 
 /* ── Dark mode tokens ── */
@@ -144,6 +145,7 @@
   }
 
   body {
+    margin: 0;
     background-color: var(--background);
     color: var(--foreground);
     font-family: 'Inter', sans-serif;
@@ -153,7 +155,14 @@
   }
 
   html {
+    height: 100%;
     font-size: var(--font-size);
+  }
+
+  body,
+  #__next {
+    height: 100%;
+    overflow: hidden;
   }
 
   h1 {
@@ -207,5 +216,127 @@
 
   ::-webkit-scrollbar-thumb:hover {
     background: var(--muted-foreground);
+  }
+}
+
+.wander-sidebar {
+  width: clamp(190px, 17vw, 240px);
+}
+
+.wander-kanban-column {
+  width: clamp(236px, 24vw, 280px);
+}
+
+.wander-card-panel {
+  width: var(--card-panel-width);
+}
+
+.wander-board-scroll {
+  min-width: 0;
+}
+
+.wander-topbar {
+  flex-wrap: nowrap;
+}
+
+.wander-topbar-trip {
+  flex: 1 1 240px;
+}
+
+.wander-invite-button,
+.wander-invite-spacer {
+  flex: 0 1 280px;
+  min-width: 0;
+}
+
+.wander-topbar-actions {
+  flex: 1 1 270px;
+  margin-left: auto;
+}
+
+.wander-invite-button span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (max-width: 1180px) {
+  :root {
+    --card-panel-width: min(380px, 42vw);
+  }
+
+  .wander-topbar {
+    gap: 10px !important;
+    padding-left: 14px !important;
+    padding-right: 14px !important;
+  }
+
+  .wander-date-range {
+    display: none;
+  }
+
+  .wander-invite-button,
+  .wander-invite-spacer {
+    flex-basis: 220px;
+  }
+
+  .wander-sidebar {
+    width: clamp(176px, 18vw, 220px);
+  }
+}
+
+@media (max-width: 900px) {
+  :root {
+    --card-panel-width: min(360px, 48vw);
+  }
+
+  .wander-topbar {
+    flex-wrap: wrap;
+    align-content: center;
+    padding-top: 8px;
+    padding-bottom: 8px;
+  }
+
+  .wander-topbar-trip {
+    flex: 1 1 100%;
+  }
+
+  .wander-invite-button,
+  .wander-invite-spacer {
+    flex: 1 1 220px;
+  }
+
+  .wander-topbar-actions {
+    flex: 1 1 260px;
+  }
+
+  .wander-kanban-column {
+    width: clamp(220px, 38vw, 260px);
+  }
+}
+
+@media (max-width: 680px) {
+  :root {
+    --card-panel-width: min(340px, 72vw);
+  }
+
+  .wander-sidebar {
+    width: 168px;
+  }
+
+  .wander-day-count {
+    display: none !important;
+  }
+
+  .wander-action-label {
+    display: none;
+  }
+
+  .wander-topbar-actions button {
+    min-height: 32px;
+  }
+
+  .wander-kanban-column {
+    width: min(82vw, 250px);
   }
 }

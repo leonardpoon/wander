@@ -25,7 +25,7 @@ async function geocodeLocation(locationName: string): Promise<{lat: number, lng:
         if (!response.ok) return null
 
         const results: NominatimResult[] = await response.json()
-        if (results.length) return null
+        if (!results.length) return null
 
         return {
             lat: parseFloat(results[0].lat),
@@ -43,6 +43,10 @@ async function getNextPosition(columnId: string): Promise<number> {
     const cards = await cardRepository.findByColumn(columnId)
     if (cards.length === 0) return 0
     return Math.max(...cards.map(c => c.position)) + 1
+}
+
+function allowsSubCategory(category: CardCategory): boolean {
+    return category === 'eating' || category === 'travel'
 }
 
 
@@ -64,9 +68,9 @@ export const cardService = {
         created_by: string
     }): Promise<Card> {
 
-        // US-14: validate sub_caregory is only set for eating
-        if (payload.sub_category && payload.category !== 'eating') {
-            throw new Error('Sub-category can only be set for eating category')
+        // US-14: only eating and travel cards have sub-category options
+        if (payload.sub_category && !allowsSubCategory(payload.category)) {
+            throw new Error('Sub-category can only be set for eating or travel cards')
         }
 
         // US-13: if fixed_time is truem time_value must be provided
@@ -113,9 +117,9 @@ export const cardService = {
     // US-18: update an existing card
     async updateCard(cardId: string, payload: UpdateCardPayload & {location_name?: string | null}): Promise<Card> {
 
-        // US-14: validate sub_caregory is only set for eating
-        if (payload.sub_category && payload.category && payload.category !== 'eating') {
-            throw new Error('Sub-category can only be set for eating category')
+        // US-14: only eating and travel cards have sub-category options
+        if (payload.sub_category && payload.category && !allowsSubCategory(payload.category)) {
+            throw new Error('Sub-category can only be set for eating or travel cards')
         }
 
         // US-13: validate fixed_time if fixed_time is provided

@@ -18,21 +18,11 @@ import {
     Eye,
     ShoppingBag,
     UtensilsCrossed,
+    Tag,
 } from 'lucide-react'
 import { Card, CardCategory } from '../entity/Cards'
 import { cardService } from '../controller/cardService'
-
-const CATEGORIES: {
-    id:    CardCategory
-    label: string
-    icon:  React.ReactNode
-    color: string
-}[] = [
-    { id: 'travel',   label: 'Travel',   icon: <Plane size={14} />,           color: 'var(--category-travel)' },
-    { id: 'sightsee', label: 'Sightsee', icon: <Eye size={14} />,             color: 'var(--category-sightsee)' },
-    { id: 'shopping', label: 'Shopping', icon: <ShoppingBag size={14} />,     color: 'var(--category-shopping)' },
-    { id: 'eating',   label: 'Eating',   icon: <UtensilsCrossed size={14} />, color: 'var(--category-eating)' },
-]
+import { CardCategoryOption } from '../entity/CardCategories'
 
 const EATING_SUBS = ['Breakfast', 'Lunch', 'Dinner', 'Café', 'Bar']
 const TRAVEL_SUBS = ['Flight', 'Train', 'Bus', 'Ferry', 'Taxi', 'Accommodation']
@@ -48,6 +38,7 @@ interface CardSidePanelProps {
     columnId: string
     card:     Card | null   // null = create mode
     columns:  ColumnOption[]
+    categoryOptions: CardCategoryOption[]
     onSave:   (payload: {
         category:      CardCategory
         sub_category?: string | null
@@ -68,6 +59,7 @@ export function CardSidePanel({
     columnId,
     card,
     columns,
+    categoryOptions,
     onSave,
     onDelete,
     onClose,
@@ -139,11 +131,18 @@ export function CardSidePanel({
         : category === 'travel' ? TRAVEL_SUBS
         : []
 
+    function getCategoryIcon(categoryId: string): React.ReactNode {
+        if (categoryId === 'travel') return <Plane size={14} />
+        if (categoryId === 'sightsee') return <Eye size={14} />
+        if (categoryId === 'shopping') return <ShoppingBag size={14} />
+        if (categoryId === 'eating') return <UtensilsCrossed size={14} />
+        return <Tag size={14} />
+    }
+
     return (
         <div
-            className="flex flex-col h-full overflow-hidden"
+            className="wander-card-panel flex flex-col h-full overflow-hidden"
             style={{
-                width:       420,
                 background:  'var(--card)',
                 borderLeft:  '1px solid var(--border)',
                 flexShrink:  0,
@@ -184,7 +183,7 @@ export function CardSidePanel({
                         Category
                     </label>
                     <div className="flex gap-2 mt-2">
-                        {CATEGORIES.map((cat) => (
+                        {categoryOptions.map((cat) => (
                             <button
                                 key={cat.id}
                                 onClick={() => setCategory(cat.id)}
@@ -197,7 +196,7 @@ export function CardSidePanel({
                                     fontWeight: 600,
                                 }}
                             >
-                                {cat.icon}
+                                {getCategoryIcon(cat.id)}
                                 {cat.label}
                             </button>
                         ))}

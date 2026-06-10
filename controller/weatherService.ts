@@ -72,7 +72,7 @@ async function fetchForecast(
         'https://api.open-meteo.com/v1/forecast',
         `?latitude=${lat}`,
         `&longitude=${lng}`,
-        '&daily=weathercode,temperature_2m_max,temperature_2m_min',
+        '&daily=weather_code,temperature_2m_max,temperature_2m_min',
         '&timezone=auto',
         '&forecast_days=7',
     ].join('')
@@ -82,12 +82,13 @@ async function fetchForecast(
 
     const raw = await response.json()
 
-    const { time, weathercode, temperature_2m_max, temperature_2m_min } = raw.daily
+    const { time, weather_code, weathercode, temperature_2m_max, temperature_2m_min } = raw.daily
+    const weatherCodes = weather_code ?? weathercode
 
     // build forecast array
     const forecasts: WeatherForecast[] = (time as string[]).map(
         (date: string, i: number) => {
-            const { label, icon } = decodeWMO(weathercode[i])
+            const { label, icon } = decodeWMO(weatherCodes[i])
             return {
                 date,
                 temp_max: Math.round(temperature_2m_max[i]),

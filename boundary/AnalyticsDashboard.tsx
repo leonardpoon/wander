@@ -15,19 +15,18 @@ import {
 import { TrendingUp, DollarSign, Calendar, Activity } from 'lucide-react'
 import { useCards } from '../controller/useCards'
 import { fxService, BudgetSummary } from '../controller/fxService'
+import {
+    BUILT_IN_CATEGORY_OPTIONS,
+    getCategoryColor,
+    getCategoryLabel,
+    getNextCategoryColor,
+} from '../entity/CardCategories'
 
 interface AnalyticsDashboardProps {
     tripId:       string
     tripCurrency: string
     homeCurrency: string
     dayCount:     number
-}
-
-const CATEGORY_COLOURS = {
-    travel:   'var(--category-travel)',
-    sightsee: 'var(--category-sightsee)',
-    shopping: 'var(--category-shopping)',
-    eating:   'var(--category-eating)',
 }
 
 export function AnalyticsDashboard({
@@ -59,12 +58,22 @@ export function AnalyticsDashboard({
     }, [cards, tripCurrency, homeCurrency])
 
     // category breakdown data for bar chart
-    const categoryData = summary ? [
-        { name: 'Travel',   amount: summary.byCategory.travel,   key: 'travel' },
-        { name: 'Sightsee', amount: summary.byCategory.sightsee, key: 'sightsee' },
-        { name: 'Shopping', amount: summary.byCategory.shopping, key: 'shopping' },
-        { name: 'Eating',   amount: summary.byCategory.eating,   key: 'eating' },
-    ] : []
+    const chartCategoryOptions = [...BUILT_IN_CATEGORY_OPTIONS]
+    const categoryData = summary ? Object.entries(summary.byCategory).map(([key, amount]) => {
+        if (!chartCategoryOptions.some((option) => option.id === key)) {
+            chartCategoryOptions.push({
+                id: key,
+                label: getCategoryLabel(key, chartCategoryOptions),
+                color: getNextCategoryColor(chartCategoryOptions.map((option) => option.color)),
+            })
+        }
+
+        return {
+            name: getCategoryLabel(key, chartCategoryOptions),
+            amount,
+            key,
+        }
+    }) : []
 
     // daily spend data for bar chart
     const dailyData = cards.reduce((acc, card) => {
@@ -196,7 +205,7 @@ export function AnalyticsDashboard({
                                 {categoryData.map((entry) => (
                                     <Cell
                                         key={entry.key}
-                                        fill={CATEGORY_COLOURS[entry.key as keyof typeof CATEGORY_COLOURS]}
+                                        fill={getCategoryColor(entry.key, chartCategoryOptions)}
                                     />
                                 ))}
                             </Bar>
