@@ -42,7 +42,7 @@ export function ShareModal({ tripCode, tripPin, onClose }: ShareModalProps) {
                         <Users size={18} style={{ color: 'var(--accent)' }} />
                         <h2
                             style={{
-                                fontFamily: "'Plus Jakarta Sans', sans-serif",
+                                fontFamily: "'Inter', system-ui, sans-serif",
                                 fontWeight: 700,
                                 fontSize:   16,
                                 color:      'var(--foreground)',
@@ -131,7 +131,7 @@ export function ShareModal({ tripCode, tripPin, onClose }: ShareModalProps) {
                         color:      'white',
                         fontSize:   13,
                         fontWeight: 700,
-                        fontFamily: "'Plus Jakarta Sans', sans-serif",
+                        fontFamily: "'Inter', system-ui, sans-serif",
                     }}
                 >
                     {copied ? <Check size={15} /> : <Copy size={15} />}

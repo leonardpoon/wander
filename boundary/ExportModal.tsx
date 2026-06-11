@@ -192,7 +192,7 @@ export function ExportModal({ tripName, cards, columns, onClose }: ExportModalPr
                         <Download size={18} style={{ color: 'var(--accent)' }} />
                         <h2
                             style={{
-                                fontFamily: "'Plus Jakarta Sans', sans-serif",
+                                fontFamily: "'Inter', system-ui, sans-serif",
                                 fontWeight: 700,
                                 fontSize:   16,
                                 color:      'var(--foreground)',
@@ -235,7 +235,7 @@ export function ExportModal({ tripName, cards, columns, onClose }: ExportModalPr
                         <div className="flex-1">
                             <h4
                                 style={{
-                                    fontFamily: "'Plus Jakarta Sans', sans-serif",
+                                    fontFamily: "'Inter', system-ui, sans-serif",
                                     fontWeight: 700,
                                     fontSize:   14,
                                     color:      'var(--foreground)',
@@ -287,7 +287,7 @@ export function ExportModal({ tripName, cards, columns, onClose }: ExportModalPr
                         <div className="flex-1">
                             <h4
                                 style={{
-                                    fontFamily: "'Plus Jakarta Sans', sans-serif",
+                                    fontFamily: "'Inter', system-ui, sans-serif",
                                     fontWeight: 700,
                                     fontSize:   14,
                                     color:      'var(--foreground)',

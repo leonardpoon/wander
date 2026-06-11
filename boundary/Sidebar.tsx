@@ -100,7 +100,7 @@ export function Sidebar({
                 </div>
                 <h2
                     style={{
-                        fontFamily: "'Plus Jakarta Sans', sans-serif",
+                        fontFamily: "'Inter', system-ui, sans-serif",
                         fontWeight: 700,
                         fontSize: 15,
                         color: 'var(--sidebar-foreground)',

@@ -25,6 +25,10 @@ import { CardCategoryOption, getCategoryColor, getCategoryLabel } from '../entit
 
 const DND_CARD = 'CARD'
 
+function displayArrowText(value: string): string {
+    return value.replace(/\s*->\s*/g, ' → ')
+}
+
 function getCategoryIcon(categoryId: string): React.ReactNode {
     if (categoryId === 'travel') return <Plane size={11} />
     if (categoryId === 'sightsee') return <Eye size={11} />
@@ -129,7 +133,7 @@ export function CardItem({ card, index, columnId, categoryOptions, onEdit, onMov
                 {/* Title */}
                 <p
                     style={{
-                        fontFamily: "'Plus Jakarta Sans', sans-serif",
+                        fontFamily: "'Inter', system-ui, sans-serif",
                         fontWeight: 600,
                         fontSize:   13,
                         color:      'var(--foreground)',
@@ -139,7 +143,7 @@ export function CardItem({ card, index, columnId, categoryOptions, onEdit, onMov
                         paddingRight: 20,  // space for edit button
                     }}
                 >
-                    {card.title}
+                    {displayArrowText(card.title)}
                 </p>
 
                 {/* US-13: time + fixed badge */}
@@ -189,7 +193,7 @@ export function CardItem({ card, index, columnId, categoryOptions, onEdit, onMov
                                         whiteSpace: 'nowrap',
                                     }}
                                 >
-                                    {card.location_name}
+                                    {displayArrowText(card.location_name)}
                                 </span>
                             </div>
                         ) : (
@@ -208,7 +212,7 @@ export function CardItem({ card, index, columnId, categoryOptions, onEdit, onMov
                                     marginLeft:  8,
                                 }}
                             >
-                                {card.budget_amount.toLocaleString()}
+                                {card.budget_currency ? `${card.budget_currency} ` : ''}{card.budget_amount.toLocaleString()}
                             </span>
                         )}
                     </div>

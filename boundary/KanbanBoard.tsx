@@ -2,7 +2,7 @@
 // US-11 to US-18: main kanban board — horizontally scrollable, drag and drop
 // US-19: weather strips on column headers
 
-import { useRef } from 'react'
+import { useEffect, useRef } from 'react'
 import { DndProvider } from 'react-dnd'
 import { HTML5Backend } from 'react-dnd-html5-backend'
 import { KanbanColumn } from './KanbanColumn'
@@ -11,7 +11,7 @@ import { useCards } from '../controller/useCards'
 import { useSessionStore } from '../controller/sessionStore'
 import { CategoryFilters } from './AppShell'
 import { WeatherForecast } from '../controller/weatherService'
-import { Card, CardCategory } from '../entity/Cards'
+import { Card } from '../entity/Cards'
 import { CardCategoryOption } from '../entity/CardCategories'
 
 interface ColumnData {
@@ -19,6 +19,7 @@ interface ColumnData {
     date:        string    // YYYY-MM-DD
     label:       string    // e.g. "Arrival", "Day 1" — optional
     destination: string    // for weather lookup
+    currency:    string
 }
 
 interface KanbanBoardProps {
@@ -54,6 +55,20 @@ export function KanbanBoard({
 
     const boardRef = useRef<HTMLDivElement>(null)
 
+    useEffect(() => {
+        if (!sidePanelColumnId) return
+
+        function scrollActiveColumnIntoView() {
+            const board = boardRef.current
+            const column = board?.querySelector<HTMLElement>(`[data-column-id="${sidePanelColumnId}"]`)
+            column?.scrollIntoView({ block: 'nearest', inline: 'end', behavior: 'smooth' })
+        }
+
+        scrollActiveColumnIntoView()
+        const timeout = window.setTimeout(scrollActiveColumnIntoView, 280)
+        return () => window.clearTimeout(timeout)
+    }, [sidePanelColumnId])
+
     // US-19: get the forecast for a specific column's date + destination
     function getWeatherForColumn(destination: string, date: string): WeatherForecast | null {
         const forecasts = weatherByDest[destination]
@@ -71,17 +86,6 @@ export function KanbanBoard({
     function handleAddCard(columnId: string) {
         setSidePanelColumnId(columnId)
         setActiveCard(null)
-    }
-
-    async function handleQuickAddCard(
-        columnId: string,
-        payload: { title: string; category: CardCategory }
-    ) {
-        await createCard({
-            column_id: columnId,
-            category: payload.category,
-            title: payload.title,
-        })
     }
 
     function handleEditCard(card: Card) {
@@ -120,7 +124,6 @@ export function KanbanBoard({
                             weather={getWeatherForColumn(col.destination, col.date)}
                             accentColor={accentColor}
                             onAddCard={() => handleAddCard(col.id)}
-                            onQuickAddCard={(payload) => handleQuickAddCard(col.id, payload)}
                             onEditCard={handleEditCard}
                             onMoveCard={moveCard}
                         />
@@ -140,6 +143,7 @@ export function KanbanBoard({
                 {/* Card side panel — slides in from right */}
                 {sidePanelColumnId && (
                     <CardSidePanel
+                        key={`${sidePanelColumnId}:${activeCard?.id ?? 'new'}`}
                         tripId={tripId}
                         columnId={sidePanelColumnId}
                         card={activeCard}

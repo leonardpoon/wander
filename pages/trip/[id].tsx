@@ -2,6 +2,7 @@
 // US-11 to US-27: main trip page — board, map, analytics, packing, todo
 
 import { useEffect, useMemo, useState } from 'react'
+import dynamic from 'next/dynamic'
 import { useRouter } from 'next/router'
 import { useSessionStore } from '../../controller/sessionStore'
 import { tripService } from '../../controller/tripService'
@@ -11,7 +12,6 @@ import { Destination } from '../../entity/Destination'
 import { Column } from '../../entity/Column'
 import { AppShell, ViewType, TabType } from '../../boundary/AppShell'
 import { KanbanBoard } from '../../boundary/KanbanBoard'
-import { MapView } from '../../boundary/MapView'
 import { AnalyticsDashboard } from '../../boundary/AnalyticsDashboard'
 import { PackingList } from '../../boundary/PackingList'
 import { TodoBoard } from '../../boundary/TodoBoard'
@@ -28,6 +28,22 @@ import {
     getUniqueCategoryId,
     normalizeCategoryLabel,
 } from '../../entity/CardCategories'
+
+const MapView = dynamic(
+    () => import('../../boundary/MapView').then((mod) => mod.MapView),
+    {
+        ssr: false,
+        loading: () => (
+            <div className="flex h-full items-center justify-center">
+                <Loader
+                    size={22}
+                    className="animate-spin"
+                    style={{ color: 'var(--accent)' }}
+                />
+            </div>
+        ),
+    }
+)
 
 export default function TripPage() {
     const router        = useRouter()
@@ -235,6 +251,7 @@ export default function TripPage() {
             date:        col.date,
             label:       col.label ?? '',
             destination: dest?.name ?? '',
+            currency:    dest?.local_currency ?? trip?.primary_currency ?? 'USD',
         }
     })
 

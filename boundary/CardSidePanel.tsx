@@ -22,15 +22,44 @@ import {
 } from 'lucide-react'
 import { Card, CardCategory } from '../entity/Cards'
 import { cardService } from '../controller/cardService'
+import { fxService } from '../controller/fxService'
 import { CardCategoryOption } from '../entity/CardCategories'
 
 const EATING_SUBS = ['Breakfast', 'Lunch', 'Dinner', 'Café', 'Bar']
 const TRAVEL_SUBS = ['Flight', 'Train', 'Bus', 'Ferry', 'Taxi', 'Accommodation']
+const BOOKING_DETAIL_SUBS = ['Flight', 'Train', 'Accommodation']
+const SUPPORTED_BUDGET_CURRENCIES = fxService.getSupportedCurrencies().map((currency) => currency.code)
+
+function normalizeArrowText(value: string): string {
+    return value.replace(/\s*->\s*/g, ' → ')
+}
+
+function parseBookingNotes(value: string | null | undefined): {
+    bookingReference: string
+    travelDetails: string
+    notes: string
+} {
+    if (!value) return { bookingReference: '', travelDetails: '', notes: '' }
+
+    const bookingMatch = value.match(/^Booking reference:\s*(.*)$/im)
+    const detailsMatch = value.match(/^Details:\s*([\s\S]*)$/im)
+
+    if (bookingMatch || detailsMatch) {
+        return {
+            bookingReference: bookingMatch?.[1]?.trim() ?? '',
+            travelDetails: detailsMatch?.[1]?.trim() ?? '',
+            notes: '',
+        }
+    }
+
+    return { bookingReference: '', travelDetails: '', notes: value }
+}
 
 interface ColumnOption {
-    id:    string
-    date:  string
-    label: string
+    id:       string
+    date:     string
+    label:    string
+    currency: string
 }
 
 interface CardSidePanelProps {
@@ -47,6 +76,7 @@ interface CardSidePanelProps {
         fixed_time?:   boolean
         time_value?:   string | null
         budget_amount?: number | null
+        budget_currency?: string | null
         notes?:        string | null
         column_id?:    string
     }) => Promise<void>
@@ -74,7 +104,11 @@ export function CardSidePanel({
     const [fixedTime,    setFixedTime]    = useState(card?.fixed_time ?? false)
     const [timeValue,    setTimeValue]    = useState(card?.time_value?.slice(0, 5) ?? '')
     const [budgetAmount, setBudgetAmount] = useState(card?.budget_amount?.toString() ?? '')
-    const [notes,        setNotes]        = useState(card?.notes ?? '')
+    const [budgetCurrency, setBudgetCurrency] = useState(card?.budget_currency ?? '')
+    const parsedNotes = parseBookingNotes(card?.notes)
+    const [notes,        setNotes]        = useState(parsedNotes.notes)
+    const [bookingReference, setBookingReference] = useState(parsedNotes.bookingReference)
+    const [travelDetails, setTravelDetails] = useState(parsedNotes.travelDetails)
     const [selectedCol,  setSelectedCol]  = useState(card?.column_id ?? columnId)
     const [saving,       setSaving]       = useState(false)
     const [deleting,     setDeleting]     = useState(false)
@@ -99,15 +133,29 @@ export function CardSidePanel({
         setError(null)
 
         try {
+            if (budgetAmount && !SUPPORTED_BUDGET_CURRENCIES.includes(effectiveBudgetCurrency)) {
+                setError(`Use a supported currency code, for example ${selectedColumnCurrency}.`)
+                return
+            }
+
+            const shouldUseBookingFields = category === 'travel' && BOOKING_DETAIL_SUBS.includes(subCategory)
+            const savedNotes = shouldUseBookingFields
+                ? [
+                    bookingReference.trim() ? `Booking reference: ${normalizeArrowText(bookingReference.trim())}` : null,
+                    travelDetails.trim() ? `Details: ${normalizeArrowText(travelDetails.trim())}` : null,
+                ].filter(Boolean).join('\n')
+                : normalizeArrowText(notes.trim())
+
             await onSave({
                 category,
                 sub_category:  subCategory || null,
-                title:         title.trim(),
-                location_name: locationName.trim() || null,
+                title:         normalizeArrowText(title.trim()),
+                location_name: locationName.trim() ? normalizeArrowText(locationName.trim()) : null,
                 fixed_time:    fixedTime,
                 time_value:    fixedTime ? timeValue : null,
                 budget_amount: budgetAmount ? parseFloat(budgetAmount) : null,
-                notes:         notes.trim() || null,
+                budget_currency: budgetAmount ? effectiveBudgetCurrency : null,
+                notes:         savedNotes || null,
                 column_id:     selectedCol,
             })
         } catch (err) {
@@ -130,6 +178,9 @@ export function CardSidePanel({
     const subOptions = category === 'eating' ? EATING_SUBS
         : category === 'travel' ? TRAVEL_SUBS
         : []
+    const selectedColumnCurrency = columns.find((col) => col.id === selectedCol)?.currency ?? 'USD'
+    const effectiveBudgetCurrency = budgetCurrency || selectedColumnCurrency
+    const showBookingFields = category === 'travel' && BOOKING_DETAIL_SUBS.includes(subCategory)
 
     function getCategoryIcon(categoryId: string): React.ReactNode {
         if (categoryId === 'travel') return <Plane size={14} />
@@ -155,7 +206,7 @@ export function CardSidePanel({
             >
                 <h2
                     style={{
-                        fontFamily: "'Plus Jakarta Sans', sans-serif",
+                        fontFamily: "'Inter', system-ui, sans-serif",
                         fontWeight: 700,
                         fontSize:   15,
                         color:      'var(--foreground)',
@@ -238,7 +289,7 @@ export function CardSidePanel({
                     <input
                         value={title}
                         onChange={(e) => setTitle(e.target.value)}
-                        placeholder="e.g. Dinner at Nobu"
+                        placeholder="Add a title"
                         className="w-full rounded-xl px-3 py-2.5 mt-2 outline-none transition-all"
                         style={{
                             background: 'var(--input-background)',
@@ -285,7 +336,7 @@ export function CardSidePanel({
                     <input
                         value={locationName}
                         onChange={(e) => setLocationName(e.target.value)}
-                        placeholder="Search for a place…"
+                        placeholder="Search for a place"
                         className="w-full rounded-xl px-3 py-2.5 mt-2 outline-none transition-all"
                         style={{
                             background: 'var(--input-background)',
@@ -359,50 +410,126 @@ export function CardSidePanel({
                             <DollarSign size={11} /> Budget
                         </span>
                     </label>
-                    <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={budgetAmount}
-                        onChange={(e) => setBudgetAmount(e.target.value)}
-                        placeholder="0.00"
-                        className="w-full rounded-xl px-3 py-2.5 mt-2 outline-none transition-all"
-                        style={{
-                            background:  'var(--input-background)',
-                            border:      '1px solid var(--border)',
-                            color:       'var(--foreground)',
-                            fontSize:    13,
-                            fontFamily:  "'JetBrains Mono', monospace",
-                        }}
-                        onFocus={(e) => e.currentTarget.style.borderColor = 'var(--ring)'}
-                        onBlur={(e) => e.currentTarget.style.borderColor = 'var(--border)'}
-                    />
+                    <div className="grid gap-2 mt-2" style={{ gridTemplateColumns: '1fr 96px' }}>
+                        <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={budgetAmount}
+                            onChange={(e) => setBudgetAmount(e.target.value)}
+                            placeholder={`0.00 ${effectiveBudgetCurrency}`}
+                            className="w-full rounded-xl px-3 py-2.5 outline-none transition-all"
+                            style={{
+                                background:  'var(--input-background)',
+                                border:      '1px solid var(--border)',
+                                color:       'var(--foreground)',
+                                fontSize:    13,
+                                fontFamily:  "'JetBrains Mono', monospace",
+                            }}
+                            onFocus={(e) => e.currentTarget.style.borderColor = 'var(--ring)'}
+                            onBlur={(e) => e.currentTarget.style.borderColor = 'var(--border)'}
+                        />
+                        <input
+                            value={effectiveBudgetCurrency}
+                            onChange={(e) => setBudgetCurrency(e.target.value.slice(0, 3).toUpperCase())}
+                            list="budget-currency-options"
+                            className="w-full rounded-xl px-3 py-2.5 outline-none transition-all"
+                            style={{
+                                background: 'var(--input-background)',
+                                border:     '1px solid var(--border)',
+                                color:      'var(--foreground)',
+                                fontSize:   13,
+                                fontFamily: "'JetBrains Mono', monospace",
+                                fontWeight: 700,
+                            }}
+                            onFocus={(e) => e.currentTarget.style.borderColor = 'var(--ring)'}
+                            onBlur={(e) => e.currentTarget.style.borderColor = 'var(--border)'}
+                        />
+                    </div>
+                    <datalist id="budget-currency-options">
+                        {SUPPORTED_BUDGET_CURRENCIES.map((currency) => (
+                            <option key={currency} value={currency} />
+                        ))}
+                    </datalist>
+                    <p style={{ fontSize: 10, color: 'var(--muted-foreground)', marginTop: 5 }}>
+                        Use a supported 3-letter currency code for analytics conversion.
+                    </p>
                 </div>
 
-                {/* US-17: Notes */}
-                <div className="mb-5">
-                    <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted-foreground)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                        <span className="flex items-center gap-1.5">
-                            <FileText size={11} /> Notes
-                        </span>
-                    </label>
-                    <textarea
-                        value={notes}
-                        onChange={(e) => setNotes(e.target.value)}
-                        placeholder="Booking refs, links, reminders…"
-                        rows={3}
-                        className="w-full rounded-xl px-3 py-2.5 mt-2 outline-none transition-all resize-none"
-                        style={{
-                            background: 'var(--input-background)',
-                            border:     '1px solid var(--border)',
-                            color:      'var(--foreground)',
-                            fontSize:   13,
-                            lineHeight: 1.5,
-                        }}
-                        onFocus={(e) => e.currentTarget.style.borderColor = 'var(--ring)'}
-                        onBlur={(e) => e.currentTarget.style.borderColor = 'var(--border)'}
-                    />
-                </div>
+                {/* US-17: Notes / booking details */}
+                {showBookingFields ? (
+                    <>
+                        <div className="mb-5">
+                            <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted-foreground)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                                <span className="flex items-center gap-1.5">
+                                    <FileText size={11} /> Booking Reference
+                                </span>
+                            </label>
+                            <input
+                                value={bookingReference}
+                                onChange={(e) => setBookingReference(e.target.value)}
+                                placeholder="Add booking reference"
+                                className="w-full rounded-xl px-3 py-2.5 mt-2 outline-none transition-all"
+                                style={{
+                                    background: 'var(--input-background)',
+                                    border:     '1px solid var(--border)',
+                                    color:      'var(--foreground)',
+                                    fontSize:   13,
+                                }}
+                                onFocus={(e) => e.currentTarget.style.borderColor = 'var(--ring)'}
+                                onBlur={(e) => e.currentTarget.style.borderColor = 'var(--border)'}
+                            />
+                        </div>
+
+                        <div className="mb-5">
+                            <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted-foreground)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                                <span className="flex items-center gap-1.5">
+                                    <FileText size={11} /> {subCategory} Details
+                                </span>
+                            </label>
+                            <textarea
+                                value={travelDetails}
+                                onChange={(e) => setTravelDetails(e.target.value)}
+                                placeholder={subCategory === 'Flight' ? 'Add flight number, route, or timing' : 'Add timing, route, or provider'}
+                                rows={3}
+                                className="w-full rounded-xl px-3 py-2.5 mt-2 outline-none transition-all resize-none"
+                                style={{
+                                    background: 'var(--input-background)',
+                                    border:     '1px solid var(--border)',
+                                    color:      'var(--foreground)',
+                                    fontSize:   13,
+                                    lineHeight: 1.5,
+                                }}
+                                onFocus={(e) => e.currentTarget.style.borderColor = 'var(--ring)'}
+                                onBlur={(e) => e.currentTarget.style.borderColor = 'var(--border)'}
+                            />
+                        </div>
+                    </>
+                ) : (
+                    <div className="mb-5">
+                        <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted-foreground)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                            <span className="flex items-center gap-1.5">
+                                <FileText size={11} /> Notes
+                            </span>
+                        </label>
+                        <textarea
+                            value={notes}
+                            onChange={(e) => setNotes(e.target.value)}
+                            placeholder="Add notes, links, or reminders"
+                            rows={3}
+                            className="w-full rounded-xl px-3 py-2.5 mt-2 outline-none transition-all resize-none"
+                            style={{
+                                background: 'var(--input-background)',
+                                border:     '1px solid var(--border)',
+                                color:      'var(--foreground)',
+                                fontSize:   13,
+                                lineHeight: 1.5,
+                            }}
+                            onFocus={(e) => e.currentTarget.style.borderColor = 'var(--ring)'}
+                            onBlur={(e) => e.currentTarget.style.borderColor = 'var(--border)'}
+                        />
+                    </div>
+                )}
 
                 {/* Error */}
                 {error && (
@@ -451,7 +578,7 @@ export function CardSidePanel({
                         color:      'var(--accent-foreground)',
                         fontSize:   13,
                         fontWeight: 700,
-                        fontFamily: "'Plus Jakarta Sans', sans-serif",
+                        fontFamily: "'Inter', system-ui, sans-serif",
                         opacity:    saving ? 0.7 : 1,
                     }}
                 >

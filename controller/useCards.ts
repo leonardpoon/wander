@@ -14,8 +14,9 @@ import {
     Card,
     CardCategory,
     CreateTodoCardPayload,
-    CreateTodoColumnPayload,
 } from '../entity/Cards'
+
+const DEFAULT_TODO_COLUMNS = ['To Do', 'In Progress', 'Awaiting', 'Done']
 
 const realtimeChannels = new Map<
     string,
@@ -57,7 +58,6 @@ export function useCards(tripId: string | null) {
         setLoading,
         setError,
         setSidePanelColumnId,
-        reset,
     } = useCardStore()
 
     // ─── Initial Load ──────────────────────────────────────────────────────
@@ -194,6 +194,26 @@ export function useCards(tripId: string | null) {
                 }
             )
 
+            // todo_columns table
+            .on(
+                'postgres_changes',
+                {
+                    event: '*',
+                    schema: 'public',
+                    table: 'todo_columns',
+                    filter: `trip_id=eq.${tripId}`,
+                },
+                (payload) => {
+                    if (payload.eventType === 'INSERT') {
+                        addTodoColumn(payload.new as any)
+                    } else if (payload.eventType === 'UPDATE') {
+                        updateTodoColumn(payload.new as any)
+                    } else if (payload.eventType === 'DELETE') {
+                        removeTodoColumn(payload.old.id)
+                    }
+                }
+            )
+
             .subscribe()
 
         realtimeChannels.set(tripId, { channel, refs: 1 })
@@ -210,13 +230,6 @@ export function useCards(tripId: string | null) {
             }
         }
     }, [tripId])
-
-    // ─── Cleanup on unmount ────────────────────────────────────────────────
-    // Reset all card state when leaving a trip entirely
-
-    useEffect(() => {
-        return () => { reset() }
-    }, [])
 
     // ─── Card Actions ──────────────────────────────────────────────────────
 
@@ -369,15 +382,21 @@ export function useCards(tripId: string | null) {
     // Called once from trip creation flow if todo_columns is empty
     const seedTodoColumns = useCallback(async () => {
         if (!tripId) return
-        const defaults = ['To Do', 'In Progress', 'Awaiting', 'Done']
-        for (let i = 0; i < defaults.length; i++) {
-            const col = await todoRepository.createColumn({
+
+        const existing = await todoRepository.findColumnsByTrip(tripId)
+        if (existing.length > 0) {
+            setTodoColumns(existing)
+            return
+        }
+
+        const created = await Promise.all(DEFAULT_TODO_COLUMNS.map((label, i) =>
+            todoRepository.createColumn({
                 trip_id: tripId,
-                label: defaults[i],
+                label,
                 position: i,
             })
-            addTodoColumn(col)
-        }
+        ))
+        setTodoColumns(created)
     }, [tripId])
 
     // US-38: add a custom todo column
@@ -448,12 +467,54 @@ export function useCards(tripId: string | null) {
     ) => {
         try {
             const card = todoCards.find((c) => c.id === cardId)
-            if (card) updateTodoCard({ ...card, column_id: targetColumnId, position: targetPosition })
-            await todoRepository.moveCard(cardId, targetColumnId, targetPosition)
+            if (!card) return
+
+            const sourceColumnId = card.column_id
+            const cardsWithoutMoved = todoCards.filter((c) => c.id !== cardId)
+            const targetCards = cardsWithoutMoved
+                .filter((c) => c.column_id === targetColumnId)
+                .sort((a, b) => a.position - b.position)
+            const boundedPosition = Math.max(0, Math.min(targetPosition, targetCards.length))
+
+            targetCards.splice(boundedPosition, 0, {
+                ...card,
+                column_id: targetColumnId,
+                position: boundedPosition,
+            })
+
+            const reindexedTargetCards = targetCards.map((todoCard, index) => ({
+                ...todoCard,
+                position: index,
+            }))
+            const reindexedSourceCards = cardsWithoutMoved
+                .filter((c) => c.column_id === sourceColumnId && sourceColumnId !== targetColumnId)
+                .sort((a, b) => a.position - b.position)
+                .map((todoCard, index) => ({ ...todoCard, position: index }))
+
+            const movedColumnIds = new Set([sourceColumnId, targetColumnId])
+            const nextTodoCards = [
+                ...cardsWithoutMoved.filter((c) => !movedColumnIds.has(c.column_id)),
+                ...reindexedSourceCards,
+                ...reindexedTargetCards,
+            ]
+
+            setTodoCards(nextTodoCards)
+            await todoRepository.moveCard(cardId, targetColumnId, boundedPosition)
+            await todoRepository.updateCardPositions([
+                ...reindexedSourceCards,
+                ...reindexedTargetCards,
+            ].map((todoCard) => ({
+                id: todoCard.id,
+                position: todoCard.position,
+            })))
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Failed to move to-do card')
+            if (tripId) {
+                const corrected = await todoRepository.findCardsByTrip(tripId)
+                setTodoCards(corrected)
+            }
         }
-    }, [todoCards])
+    }, [todoCards, tripId])
 
     const deleteTodoCard = useCallback(async (cardId: string) => {
         try {

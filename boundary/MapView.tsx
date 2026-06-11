@@ -4,15 +4,49 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import Map, { Marker, Source, Layer, NavigationControl } from 'react-map-gl/maplibre'
+import * as maplibregl from 'maplibre-gl'
 import { Navigation, X } from 'lucide-react'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { useCards } from '../controller/useCards'
 import { mapService, MapPin, RouteResult } from '../controller/mapService'
 import { Card } from '../entity/Cards'
 
+maplibregl.setWorkerUrl('/maplibre-gl-csp-worker.js')
+
 // Free CARTO tiles — no API key required
-const LIGHT_STYLE = 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json'
-const DARK_STYLE  = 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json'
+const LIGHT_STYLE = {
+    version: 8 as const,
+    sources: {
+        osm: {
+            type: 'raster' as const,
+            tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+            tileSize: 256,
+            attribution: '© OpenStreetMap contributors',
+        },
+    },
+    layers: [{
+        id: 'osm-tiles',
+        type: 'raster' as const,
+        source: 'osm',
+    }],
+}
+
+const DARK_STYLE = {
+    version: 8 as const,
+    sources: {
+        cartoDark: {
+            type: 'raster' as const,
+            tiles: ['https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png'],
+            tileSize: 256,
+            attribution: '© OpenStreetMap contributors © CARTO',
+        },
+    },
+    layers: [{
+        id: 'carto-dark-tiles',
+        type: 'raster' as const,
+        source: 'cartoDark',
+    }],
+}
 
 interface MapViewProps {
     tripId:   string
@@ -74,6 +108,7 @@ export function MapView({ tripId, darkMode }: MapViewProps) {
         <div className="relative w-full h-full">
             {/* Map */}
             <Map
+                mapLib={maplibregl}
                 initialViewState={{
                     latitude:  initLat,
                     longitude: initLng,
@@ -210,7 +245,7 @@ export function MapView({ tripId, darkMode }: MapViewProps) {
 
                             <p
                                 style={{
-                                    fontFamily: "'Plus Jakarta Sans', sans-serif",
+                                    fontFamily: "'Inter', system-ui, sans-serif",
                                     fontWeight: 700,
                                     fontSize:   14,
                                     color:      'var(--foreground)',

@@ -4,15 +4,34 @@
 import {supabase} from './supabaseClient'
 import {Card, CreateCardPayload, UpdateCardPayload, CardVote, CardVoteTally} from './Cards'
 
+function isMissingBudgetCurrencyColumn(error: { message?: string } | null): boolean {
+    return Boolean(error?.message?.includes('budget_currency'))
+}
+
+function withoutBudgetCurrency<T extends { budget_currency?: string | null }>(payload: T): Omit<T, 'budget_currency'> {
+    const { budget_currency, ...fallbackPayload } = payload
+    return fallbackPayload
+}
+
 export const cardRepository = {
 
     // US-11: insert a new card into a column
     async createCard(payload: CreateCardPayload): Promise<Card> {
-        const {data, error} = await supabase
+        let {data, error} = await supabase
             .from('cards')
             .insert(payload)
             .select()
             .single()
+
+        if (isMissingBudgetCurrencyColumn(error)) {
+            const retry = await supabase
+                .from('cards')
+                .insert(withoutBudgetCurrency(payload))
+                .select()
+                .single()
+            data = retry.data
+            error = retry.error
+        }
 
         if (error) throw new Error(`createCard failed: ${error.message}`)
         return data as Card
@@ -71,12 +90,23 @@ export const cardRepository = {
 
     // US-18: update card fields
     async updateCard(cardId: string, payload: UpdateCardPayload): Promise<Card> {
-        const {data, error} = await supabase
+        let {data, error} = await supabase
             .from('cards')
             .update(payload)
             .eq('id', cardId)
             .select()
             .single()
+
+        if (isMissingBudgetCurrencyColumn(error)) {
+            const retry = await supabase
+                .from('cards')
+                .update(withoutBudgetCurrency(payload))
+                .eq('id', cardId)
+                .select()
+                .single()
+            data = retry.data
+            error = retry.error
+        }
 
         if (error) throw new Error(`updateCard failed: ${error.message}`)
         return data as Card
@@ -152,6 +182,14 @@ export const cardRepository = {
 
         // group votes by card_id
         const tallyMap = new Map<string, CardVoteTally>()
+        for (const cardId of cardIds) {
+            tallyMap.set(cardId, {
+                card_id: cardId,
+                up: 0,
+                down: 0,
+                user_vote: null,
+            })
+        }
 
         for (const vote of votes) {
             const tally = tallyMap.get(vote.card_id)

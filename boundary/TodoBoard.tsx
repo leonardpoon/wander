@@ -3,9 +3,14 @@
 // US-36: due date colour coding
 // US-37: assignee chips
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { DndProvider, useDrag, useDrop } from 'react-dnd'
+import { HTML5Backend } from 'react-dnd-html5-backend'
 import { Plus, Trash2, GripVertical, Calendar, User } from 'lucide-react'
 import { useCards } from '../controller/useCards'
+import { TodoCard } from '../entity/Cards'
+
+const DND_TODO_CARD = 'TODO_CARD'
 
 interface TodoBoardProps {
     tripId: string
@@ -36,11 +41,22 @@ export function TodoBoard({ tripId }: TodoBoardProps) {
     const [newCardTitle,   setNewCardTitle]   = useState('')
     const [newCardDue,     setNewCardDue]     = useState('')
     const [newCardAssignee,setNewCardAssignee]= useState('')
+    const [settingUpDefaults, setSettingUpDefaults] = useState(false)
 
     // US-35: seed default columns if none exist
     async function handleSeed() {
-        await seedTodoColumns()
+        setSettingUpDefaults(true)
+        try {
+            await seedTodoColumns()
+        } finally {
+            setSettingUpDefaults(false)
+        }
     }
+
+    useEffect(() => {
+        if (isLoading || todoColumns.length > 0 || settingUpDefaults) return
+        handleSeed()
+    }, [isLoading, todoColumns.length, settingUpDefaults])
 
     async function handleAddColumn() {
         if (!newColLabel.trim()) return
@@ -69,6 +85,18 @@ export function TodoBoard({ tripId }: TodoBoardProps) {
         setAddingCardCol(null)
     }
 
+    const inProgressColumnIds = todoColumns
+        .filter((col) => col.label.toLowerCase().includes('progress'))
+        .map((col) => col.id)
+    const completedColumnIds = todoColumns
+        .filter((col) => {
+            const label = col.label.toLowerCase()
+            return label.includes('done') || label.includes('complete')
+        })
+        .map((col) => col.id)
+    const inProgressCount = todoCards.filter((card) => inProgressColumnIds.includes(card.column_id)).length
+    const completedCount = todoCards.filter((card) => completedColumnIds.includes(card.column_id)).length
+
     if (isLoading) {
         return (
             <div className="flex items-center justify-center h-full">
@@ -81,42 +109,61 @@ export function TodoBoard({ tripId }: TodoBoardProps) {
         return (
             <div className="flex flex-col items-center justify-center h-full gap-4">
                 <p style={{ color: 'var(--muted-foreground)', fontSize: 14 }}>
-                    No to-do columns yet.
+                    {settingUpDefaults ? 'Setting up to-do columns...' : 'No to-do columns yet.'}
                 </p>
                 <button
                     onClick={handleSeed}
+                    disabled={settingUpDefaults}
                     className="rounded-xl px-4 py-2.5"
                     style={{
                         background: 'var(--accent)',
                         color:      'var(--accent-foreground)',
                         fontSize:   13,
                         fontWeight: 600,
+                        opacity:    settingUpDefaults ? 0.65 : 1,
                     }}
                 >
-                    Set up default columns
+                    {settingUpDefaults ? 'Setting up...' : 'Set up default columns'}
                 </button>
             </div>
         )
     }
 
     return (
-        <div
-            className="flex h-full overflow-x-auto"
-            style={{ padding: 16, gap: 12 }}
-        >
-            {todoColumns.map((col) => {
-                const colCards = getTodoCardsByColumn(col.id)
+        <DndProvider backend={HTML5Backend}>
+            <div
+                className="flex h-full flex-col overflow-hidden"
+                style={{ padding: 16, gap: 12 }}
+            >
+                <div className="flex shrink-0 flex-wrap items-center justify-center gap-2">
+                    <TodoStat
+                        label="Total"
+                        value={todoCards.length}
+                        color="var(--accent)"
+                    />
+                    <TodoStat
+                        label="In Progress"
+                        value={inProgressCount}
+                        color="#F59E0B"
+                    />
+                    <TodoStat
+                        label="Completed"
+                        value={completedCount}
+                        color="var(--success)"
+                    />
+                </div>
 
-                return (
-                    <div
-                        key={col.id}
-                        className="flex flex-col shrink-0 rounded-xl"
-                        style={{
-                            width:      280,
-                            background: 'var(--muted)',
-                            maxHeight:  '100%',
-                        }}
-                    >
+                <div className="flex flex-1 overflow-x-auto" style={{ gap: 12 }}>
+                {todoColumns.map((col) => {
+                    const colCards = getTodoCardsByColumn(col.id)
+
+                    return (
+                        <TodoColumnFrame
+                            key={col.id}
+                            columnId={col.id}
+                            cardCount={colCards.length}
+                            onMoveCard={moveTodoCard}
+                        >
                         {/* Column header */}
                         <div
                             className="flex items-center justify-between px-3 py-2.5"
@@ -144,7 +191,7 @@ export function TodoBoard({ tripId }: TodoBoardProps) {
                             ) : (
                                 <span
                                     style={{
-                                        fontFamily: "'Plus Jakarta Sans', sans-serif",
+                                        fontFamily: "'Inter', system-ui, sans-serif",
                                         fontWeight: 700,
                                         fontSize:   13,
                                         color:      'var(--foreground)',
@@ -188,18 +235,28 @@ export function TodoBoard({ tripId }: TodoBoardProps) {
 
                         {/* Cards */}
                         <div
-                            className="flex flex-col flex-1 overflow-y-auto p-2"
-                            style={{ gap: 8 }}
+                            className="flex flex-col flex-1 overflow-y-auto p-2 transition-colors"
+                            style={{
+                                gap: 8,
+                                cursor: addingCardCol === col.id ? 'default' : 'copy',
+                            }}
+                            onClick={(e) => {
+                                if (addingCardCol === col.id || e.target !== e.currentTarget) return
+                                setAddingCardCol(col.id)
+                            }}
+                            onMouseEnter={(e) => {
+                                if (addingCardCol !== col.id) e.currentTarget.style.background = 'color-mix(in srgb, var(--accent) 6%, transparent)'
+                            }}
+                            onMouseLeave={(e) => {
+                                e.currentTarget.style.background = 'transparent'
+                            }}
                         >
-                            {colCards.map((card) => (
-                                <div
+                            {colCards.map((card, index) => (
+                                <TodoCardFrame
                                     key={card.id}
-                                    className="group rounded-xl p-3"
-                                    style={{
-                                        background: 'var(--card)',
-                                        border:     '1px solid var(--border)',
-                                        boxShadow:  '0 1px 3px rgba(0,0,0,0.06)',
-                                    }}
+                                    card={card}
+                                    columnId={col.id}
+                                    index={index}
                                 >
                                     {/* Title */}
                                     <p
@@ -263,8 +320,33 @@ export function TodoBoard({ tripId }: TodoBoardProps) {
                                     >
                                         Delete
                                     </button>
-                                </div>
+                                </TodoCardFrame>
                             ))}
+
+                            {colCards.length === 0 && addingCardCol !== col.id && (
+                                <button
+                                    type="button"
+                                    onClick={() => setAddingCardCol(col.id)}
+                                    className="flex flex-1 min-h-32 items-center justify-center gap-2 rounded-lg border-2 border-dashed transition-colors"
+                                    style={{
+                                        borderColor: 'var(--border)',
+                                        color: 'var(--muted-foreground)',
+                                        fontSize: 12,
+                                        fontWeight: 600,
+                                    }}
+                                    onMouseEnter={(e) => {
+                                        e.currentTarget.style.borderColor = 'var(--accent)'
+                                        e.currentTarget.style.color = 'var(--foreground)'
+                                    }}
+                                    onMouseLeave={(e) => {
+                                        e.currentTarget.style.borderColor = 'var(--border)'
+                                        e.currentTarget.style.color = 'var(--muted-foreground)'
+                                    }}
+                                >
+                                    <Plus size={14} />
+                                    Add task
+                                </button>
+                            )}
 
                             {/* Add card form */}
                             {addingCardCol === col.id ? (
@@ -359,12 +441,12 @@ export function TodoBoard({ tripId }: TodoBoardProps) {
                                 </button>
                             )}
                         </div>
-                    </div>
-                )
-            })}
+                        </TodoColumnFrame>
+                    )
+                })}
 
             {/* Add column button */}
-            <div className="shrink-0" style={{ width: 280 }}>
+                <div className="shrink-0" style={{ width: 280 }}>
                 {addingCol ? (
                     <div
                         className="rounded-xl p-3"
@@ -433,6 +515,128 @@ export function TodoBoard({ tripId }: TodoBoardProps) {
                         Add Column
                     </button>
                 )}
+                </div>
+                </div>
+            </div>
+        </DndProvider>
+    )
+}
+
+interface TodoStatProps {
+    label: string
+    value: number
+    color: string
+}
+
+function TodoStat({ label, value, color }: TodoStatProps) {
+    return (
+        <div
+            className="flex min-w-32 items-center justify-center gap-2 rounded-full px-3 py-1.5"
+            style={{
+                background: `color-mix(in srgb, ${color} 12%, var(--card))`,
+                border:     `1px solid color-mix(in srgb, ${color} 35%, var(--border))`,
+                color,
+                fontSize:   12,
+                fontWeight: 600,
+            }}
+        >
+            <span>{label}</span>
+            <span
+                className="rounded-full px-1.5"
+                style={{
+                    background: 'var(--card)',
+                    color,
+                    fontWeight: 700,
+                }}
+            >
+                {value}
+            </span>
+        </div>
+    )
+}
+
+interface TodoColumnFrameProps {
+    columnId: string
+    cardCount: number
+    onMoveCard: (cardId: string, targetColumnId: string, targetPosition: number) => Promise<void>
+    children: React.ReactNode
+}
+
+function TodoColumnFrame({ columnId, cardCount, onMoveCard, children }: TodoColumnFrameProps) {
+    const columnRef = useRef<HTMLDivElement>(null)
+    const [{ isOver }, drop] = useDrop({
+        accept: DND_TODO_CARD,
+        drop: (item: { cardId: string }) => {
+            onMoveCard(item.cardId, columnId, cardCount)
+        },
+        collect: (monitor) => ({
+            isOver: monitor.isOver(),
+        }),
+    })
+
+    drop(columnRef)
+
+    return (
+        <div
+            ref={columnRef}
+            className="flex flex-col shrink-0 rounded-xl transition-colors"
+            style={{
+                width:      280,
+                background: isOver
+                    ? 'color-mix(in srgb, var(--accent) 10%, var(--muted))'
+                    : 'var(--muted)',
+                border:    isOver ? '2px solid var(--accent)' : '2px solid transparent',
+                maxHeight: '100%',
+            }}
+        >
+            {children}
+        </div>
+    )
+}
+
+interface TodoCardFrameProps {
+    card: TodoCard
+    columnId: string
+    index: number
+    children: React.ReactNode
+}
+
+function TodoCardFrame({ card, columnId, index, children }: TodoCardFrameProps) {
+    const cardRef = useRef<HTMLDivElement>(null)
+    const [{ isDragging }, drag] = useDrag({
+        type: DND_TODO_CARD,
+        item: { cardId: card.id, sourceColumnId: columnId, sourceIndex: index },
+        collect: (monitor) => ({
+            isDragging: monitor.isDragging(),
+        }),
+    })
+
+    drag(cardRef)
+
+    return (
+        <div
+            ref={cardRef}
+            className="group rounded-xl p-3 transition-all"
+            style={{
+                background: 'var(--card)',
+                border:     '1px solid var(--border)',
+                boxShadow:  isDragging ? 'none' : '0 1px 3px rgba(0,0,0,0.06)',
+                cursor:     isDragging ? 'grabbing' : 'grab',
+                opacity:    isDragging ? 0.45 : 1,
+            }}
+        >
+            <div className="flex items-start gap-2">
+                <GripVertical
+                    size={13}
+                    style={{
+                        color:      'var(--muted-foreground)',
+                        flexShrink: 0,
+                        marginTop:  1,
+                    }}
+                />
+                <div className="min-w-0 flex-1">
+                    {children}
+                </div>
             </div>
         </div>
     )

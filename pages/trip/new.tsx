@@ -181,7 +181,10 @@ export default function NewTripPage() {
     }
 
     return (
-        <div className="min-h-screen" style={{ background: 'var(--background)' }}>
+        <div
+            className="min-h-screen overflow-y-auto"
+            style={{ height: '100%', background: 'var(--background)' }}
+        >
             <div
                 className="flex items-center justify-between px-8 py-4"
                 style={{ background: 'var(--card)', borderBottom: '1px solid var(--border)' }}
@@ -196,7 +199,7 @@ export default function NewTripPage() {
                 </button>
                 <h1
                     style={{
-                        fontFamily: "'Plus Jakarta Sans', sans-serif",
+                        fontFamily: "'Inter', system-ui, sans-serif",
                         fontWeight: 800,
                         fontSize: 20,
                         color: 'var(--foreground)',
@@ -207,83 +210,122 @@ export default function NewTripPage() {
                 <span style={{ width: 72 }} />
             </div>
 
-            <main className="mx-auto px-6 py-10" style={{ maxWidth: 720 }}>
-                <h2
-                    style={{
-                        fontFamily: "'Plus Jakarta Sans', sans-serif",
-                        fontWeight: 700,
-                        fontSize: 26,
-                        color: 'var(--foreground)',
-                        marginBottom: 6,
-                    }}
+            <main className="mx-auto px-6 py-6" style={{ maxWidth: 1120 }}>
+                <form
+                    onSubmit={handleSubmit}
+                    className="wander-new-trip-form grid gap-5"
                 >
-                    New trip
-                </h2>
-                <p style={{ color: 'var(--muted-foreground)', fontSize: 14, marginBottom: 24 }}>
-                    Set up the first destination and sharing PIN.
-                </p>
-
-                <form onSubmit={handleSubmit} className="grid gap-4">
-                    <label className="grid gap-2" style={{ color: 'var(--foreground)', fontSize: 13, fontWeight: 600 }}>
-                        Trip name
-                        <input
-                            value={name}
-                            onChange={(event) => setName(event.target.value)}
-                            placeholder="Summer in Tokyo"
-                            className="rounded-xl px-4 py-3 outline-none"
-                            style={{ background: 'var(--input-background)', border: '1px solid var(--border)' }}
-                        />
-                    </label>
-
-                    <label className="grid gap-2" style={{ color: 'var(--foreground)', fontSize: 13, fontWeight: 600 }}>
-                        Destination
-                        <input
-                            value={destination}
-                            onChange={(event) => {
-                                setDestination(event.target.value)
-                                applyCountryDefaults(event.target.value)
-                            }}
-                            onBlur={(event) => applyCountryDefaults(event.target.value)}
-                            placeholder="Japan"
-                            className="rounded-xl px-4 py-3 outline-none"
-                            style={{ background: 'var(--input-background)', border: '1px solid var(--border)' }}
-                            list="country-options"
-                        />
-                        <datalist id="country-options">
-                            {COUNTRY_CURRENCIES.map((country) => (
-                                <option key={country.code} value={country.name} />
-                            ))}
-                        </datalist>
-                    </label>
-
-                    <div className="grid gap-4" style={{ gridTemplateColumns: '1fr 1fr' }}>
-                        <label className="grid gap-2" style={{ color: 'var(--foreground)', fontSize: 13, fontWeight: 600 }}>
-                            Country code
-                            <input
-                                value={countryCode}
-                                onChange={(event) => {
-                                    const nextCode = event.target.value.slice(0, 2).toUpperCase()
-                                    setCountryCode(nextCode)
-                                    const nextCurrency = getCurrencyForCountryCode(nextCode)
-                                    if (nextCurrency) setCurrency(nextCurrency)
+                    <div className="grid gap-4 content-start">
+                        <div>
+                            <h2
+                                style={{
+                                    fontFamily: "'Inter', system-ui, sans-serif",
+                                    fontWeight: 700,
+                                    fontSize: 24,
+                                    color: 'var(--foreground)',
+                                    marginBottom: 4,
                                 }}
-                                className="rounded-xl px-4 py-3 outline-none"
-                                style={{ background: 'var(--input-background)', border: '1px solid var(--border)' }}
-                            />
-                        </label>
+                            >
+                                New trip
+                            </h2>
+                            <p style={{ color: 'var(--muted-foreground)', fontSize: 13 }}>
+                                Set up the first destination and sharing PIN.
+                            </p>
+                        </div>
+
                         <label className="grid gap-2" style={{ color: 'var(--foreground)', fontSize: 13, fontWeight: 600 }}>
-                            Currency
+                            Trip name
                             <input
-                                value={currency}
-                                onChange={(event) => setCurrency(event.target.value.slice(0, 3).toUpperCase())}
+                                value={name}
+                                onChange={(event) => setName(event.target.value)}
+                                placeholder="Summer in Tokyo"
                                 className="rounded-xl px-4 py-3 outline-none"
                                 style={{ background: 'var(--input-background)', border: '1px solid var(--border)' }}
                             />
                         </label>
+
+                        <label className="grid gap-2" style={{ color: 'var(--foreground)', fontSize: 13, fontWeight: 600 }}>
+                            Destination
+                            <input
+                                value={destination}
+                                onChange={(event) => {
+                                    setDestination(event.target.value)
+                                    applyCountryDefaults(event.target.value)
+                                }}
+                                onBlur={(event) => applyCountryDefaults(event.target.value)}
+                                placeholder="Japan"
+                                className="rounded-xl px-4 py-3 outline-none"
+                                style={{ background: 'var(--input-background)', border: '1px solid var(--border)' }}
+                                list="country-options"
+                            />
+                            <datalist id="country-options">
+                                {COUNTRY_CURRENCIES.map((country) => (
+                                    <option key={country.code} value={country.name} />
+                                ))}
+                            </datalist>
+                        </label>
+
+                        <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))' }}>
+                            <label className="grid gap-2" style={{ color: 'var(--foreground)', fontSize: 13, fontWeight: 600 }}>
+                                Country code
+                                <input
+                                    value={countryCode}
+                                    onChange={(event) => {
+                                        const nextCode = event.target.value.slice(0, 2).toUpperCase()
+                                        setCountryCode(nextCode)
+                                        const nextCurrency = getCurrencyForCountryCode(nextCode)
+                                        if (nextCurrency) setCurrency(nextCurrency)
+                                    }}
+                                    className="rounded-xl px-4 py-3 outline-none"
+                                    style={{ background: 'var(--input-background)', border: '1px solid var(--border)' }}
+                                />
+                            </label>
+                            <label className="grid gap-2" style={{ color: 'var(--foreground)', fontSize: 13, fontWeight: 600 }}>
+                                Currency
+                                <input
+                                    value={currency}
+                                    onChange={(event) => setCurrency(event.target.value.slice(0, 3).toUpperCase())}
+                                    className="rounded-xl px-4 py-3 outline-none"
+                                    style={{ background: 'var(--input-background)', border: '1px solid var(--border)' }}
+                                />
+                            </label>
+                        </div>
+
+                        <label className="grid gap-2" style={{ color: 'var(--foreground)', fontSize: 13, fontWeight: 600 }}>
+                            4-digit room PIN
+                            <input
+                                value={pin}
+                                onChange={(event) => setPin(event.target.value.replace(/\D/g, '').slice(0, 4))}
+                                placeholder="1234"
+                                className="rounded-xl px-4 py-3 outline-none"
+                                style={{
+                                    background: 'var(--input-background)',
+                                    border: '1px solid var(--border)',
+                                    letterSpacing: '0.16em',
+                                }}
+                            />
+                        </label>
+
+                        {error && <p style={{ color: '#EF4444', fontSize: 13 }}>{error}</p>}
+
+                        <button
+                            type="submit"
+                            disabled={isSaving}
+                            className="flex items-center justify-center gap-2 rounded-xl px-5 py-3"
+                            style={{
+                                background: 'var(--accent)',
+                                color: 'var(--accent-foreground)',
+                                fontWeight: 700,
+                                opacity: isSaving ? 0.65 : 1,
+                            }}
+                        >
+                            {isSaving ? <Loader size={16} className="animate-spin" /> : <Plus size={16} />}
+                            Create trip
+                        </button>
                     </div>
 
                     <section
-                        className="grid gap-5 rounded-2xl p-5"
+                        className="grid gap-4 rounded-2xl p-4"
                         style={{
                             background: 'var(--card)',
                             border: '1px solid var(--border)',
@@ -295,8 +337,8 @@ export default function NewTripPage() {
                                 <span
                                     className="flex items-center justify-center rounded-xl"
                                     style={{
-                                        width: 44,
-                                        height: 44,
+                                        width: 40,
+                                        height: 40,
                                         background: 'var(--accent)',
                                         color: 'var(--accent-foreground)',
                                     }}
@@ -326,7 +368,7 @@ export default function NewTripPage() {
                             </span>
                         </div>
 
-                        <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))' }}>
+                        <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>
                             {[
                                 { id: 'start' as const, label: 'Start', value: startDate },
                                 { id: 'end' as const, label: 'End', value: endDate },
@@ -335,7 +377,7 @@ export default function NewTripPage() {
                                     key={item.id}
                                     type="button"
                                     onClick={() => setEditingDate(item.id)}
-                                    className="rounded-xl px-4 py-3 text-left transition-colors"
+                                    className="rounded-xl px-4 py-2.5 text-left transition-colors"
                                     style={{
                                         background: editingDate === item.id ? 'color-mix(in srgb, var(--accent) 12%, transparent)' : 'var(--input-background)',
                                         border: editingDate === item.id ? '2px solid var(--accent)' : '1px solid var(--border)',
@@ -363,20 +405,20 @@ export default function NewTripPage() {
                         </div>
 
                         <div
-                            className="rounded-2xl p-4"
+                            className="rounded-2xl p-3"
                             style={{
                                 background: 'var(--input-background)',
                                 border: '1px solid var(--border)',
                             }}
                         >
-                            <div className="mb-4 flex items-center justify-between gap-3">
+                            <div className="mb-3 flex items-center justify-between gap-3">
                                 <button
                                     type="button"
                                     onClick={() => setVisibleMonth((month) => shiftMonth(month, -1))}
                                     className="flex items-center justify-center rounded-xl transition-colors"
                                     style={{
-                                        width: 36,
-                                        height: 36,
+                                        width: 32,
+                                        height: 32,
                                         background: 'var(--card)',
                                         border: '1px solid var(--border)',
                                         color: 'var(--foreground)',
@@ -388,8 +430,8 @@ export default function NewTripPage() {
                                 <h3
                                     style={{
                                         color: 'var(--foreground)',
-                                        fontFamily: "'Plus Jakarta Sans', sans-serif",
-                                        fontSize: 18,
+                                        fontFamily: "'Inter', system-ui, sans-serif",
+                                        fontSize: 16,
                                         fontWeight: 800,
                                     }}
                                 >
@@ -401,8 +443,8 @@ export default function NewTripPage() {
                                     onClick={() => setVisibleMonth((month) => shiftMonth(month, 1))}
                                     className="flex items-center justify-center rounded-xl transition-colors"
                                     style={{
-                                        width: 36,
-                                        height: 36,
+                                        width: 32,
+                                        height: 32,
                                         background: 'var(--card)',
                                         border: '1px solid var(--border)',
                                         color: 'var(--foreground)',
@@ -412,7 +454,7 @@ export default function NewTripPage() {
                                 </button>
                             </div>
 
-                            <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(7, minmax(0, 1fr))' }}>
+                            <div className="grid gap-1.5" style={{ gridTemplateColumns: 'repeat(7, minmax(0, 1fr))' }}>
                                 {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
                                     <div
                                         key={day}
@@ -443,8 +485,7 @@ export default function NewTripPage() {
                                             onClick={() => selectCalendarDate(date)}
                                             className="rounded-xl transition-colors"
                                             style={{
-                                                aspectRatio: '1 / 1',
-                                                minHeight: 44,
+                                                height: 34,
                                                 background: isStart || isEnd
                                                     ? 'var(--accent)'
                                                     : isInRange
@@ -456,7 +497,7 @@ export default function NewTripPage() {
                                                     : isCurrentMonth
                                                         ? 'var(--foreground)'
                                                         : 'var(--muted-foreground)',
-                                                fontSize: 14,
+                                                fontSize: 13,
                                                 fontWeight: isStart || isEnd || isToday ? 800 : 600,
                                                 opacity: isCurrentMonth ? 1 : 0.45,
                                             }}
@@ -487,38 +528,6 @@ export default function NewTripPage() {
                             ))}
                         </div>
                     </section>
-
-                    <label className="grid gap-2" style={{ color: 'var(--foreground)', fontSize: 13, fontWeight: 600 }}>
-                        4-digit room PIN
-                        <input
-                            value={pin}
-                            onChange={(event) => setPin(event.target.value.replace(/\D/g, '').slice(0, 4))}
-                            placeholder="1234"
-                            className="rounded-xl px-4 py-3 outline-none"
-                            style={{
-                                background: 'var(--input-background)',
-                                border: '1px solid var(--border)',
-                                letterSpacing: '0.16em',
-                            }}
-                        />
-                    </label>
-
-                    {error && <p style={{ color: '#EF4444', fontSize: 13 }}>{error}</p>}
-
-                    <button
-                        type="submit"
-                        disabled={isSaving}
-                        className="mt-2 flex items-center justify-center gap-2 rounded-xl px-5 py-3"
-                        style={{
-                            background: 'var(--accent)',
-                            color: 'var(--accent-foreground)',
-                            fontWeight: 700,
-                            opacity: isSaving ? 0.65 : 1,
-                        }}
-                    >
-                        {isSaving ? <Loader size={16} className="animate-spin" /> : <Plus size={16} />}
-                        Create trip
-                    </button>
                 </form>
             </main>
         </div>

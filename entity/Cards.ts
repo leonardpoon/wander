@@ -28,6 +28,7 @@ export interface Card {
     fixed_time: boolean
     time_value: string | null
     budget_amount: number | null
+    budget_currency: string | null
     notes: string | null
     position: number
     created_at: string
@@ -49,6 +50,7 @@ export interface CreateCardPayload {
     fixed_time?: boolean
     time_value?: string | null
     budget_amount?: number | null
+    budget_currency?: string | null
     notes?: string | null
     position: number
     created_by: string
@@ -67,6 +69,7 @@ export interface UpdateCardPayload {
     fixed_time?: boolean
     time_value?: string | null
     budget_amount?: number | null
+    budget_currency?: string | null
     notes?: string | null
     position?: number
 }

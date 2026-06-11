@@ -23,6 +23,9 @@ export function PackingList({ tripId }: PackingListProps) {
 
     const checkedCount = packingItems.filter((i) => i.checked).length
     const totalCount   = packingItems.length
+    const packedPercent = totalCount > 0
+        ? Math.round((checkedCount / totalCount) * 100)
+        : 0
 
     async function handleAdd() {
         if (!newLabel.trim()) return
@@ -49,7 +52,7 @@ export function PackingList({ tripId }: PackingListProps) {
                 <div>
                     <h2
                         style={{
-                            fontFamily:    "'Plus Jakarta Sans', sans-serif",
+                            fontFamily:    "'Inter', system-ui, sans-serif",
                             fontWeight:    700,
                             fontSize:      20,
                             color:         'var(--foreground)',
@@ -62,9 +65,26 @@ export function PackingList({ tripId }: PackingListProps) {
 
                     {/* US-34: progress indicator */}
                     {totalCount > 0 && (
-                        <p style={{ fontSize: 12, color: 'var(--muted-foreground)' }}>
-                            {checkedCount} of {totalCount} packed
-                        </p>
+                        <div className="flex items-center gap-2">
+                            <p style={{ fontSize: 12, color: 'var(--muted-foreground)' }}>
+                                {checkedCount} of {totalCount} packed
+                            </p>
+                            <span
+                                className="rounded-full px-2 py-0.5"
+                                style={{
+                                    background: checkedCount === totalCount
+                                        ? 'color-mix(in srgb, var(--success) 14%, transparent)'
+                                        : 'color-mix(in srgb, var(--accent) 12%, transparent)',
+                                    color:      checkedCount === totalCount
+                                        ? 'var(--success)'
+                                        : 'var(--accent)',
+                                    fontSize:   11,
+                                    fontWeight: 700,
+                                }}
+                            >
+                                {packedPercent}%
+                            </span>
+                        </div>
                     )}
                 </div>
 
@@ -95,7 +115,7 @@ export function PackingList({ tripId }: PackingListProps) {
                     <div
                         className="h-full rounded-full transition-all"
                         style={{
-                            width:      `${(checkedCount / totalCount) * 100}%`,
+                            width:      `${packedPercent}%`,
                             background: checkedCount === totalCount
                                 ? 'var(--success)'
                                 : 'var(--accent)',

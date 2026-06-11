@@ -64,6 +64,7 @@ export const cardService = {
         fixed_time?: boolean
         time_value?: string | null
         budget_amount?: number | null
+        budget_currency?: string | null
         notes?: string | null
         created_by: string
     }): Promise<Card> {
@@ -106,6 +107,7 @@ export const cardService = {
             fixed_time: payload.fixed_time ?? false,
             time_value: payload.time_value ?? null,
             budget_amount: payload.budget_amount ?? null,
+            budget_currency: payload.budget_currency ?? null,
             notes: payload.notes ?? null,
             position,
             created_by: payload.created_by

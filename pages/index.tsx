@@ -195,7 +195,7 @@ export default function Home() {
                 <div className="text-center mb-12">
                     <h1
                         style={{
-                            fontFamily:    "'Plus Jakarta Sans', sans-serif",
+                            fontFamily:    "'Inter', system-ui, sans-serif",
                             fontWeight:    800,
                             fontSize:      48,
                             color:         'var(--foreground)',
@@ -245,7 +245,7 @@ export default function Home() {
                         <div className="text-center">
                             <p
                                 style={{
-                                    fontFamily: "'Plus Jakarta Sans', sans-serif",
+                                    fontFamily: "'Inter', system-ui, sans-serif",
                                     fontWeight: 700,
                                     fontSize:   16,
                                     color:      'var(--foreground)',
@@ -295,7 +295,7 @@ export default function Home() {
                         <div className="text-center">
                             <p
                                 style={{
-                                    fontFamily: "'Plus Jakarta Sans', sans-serif",
+                                    fontFamily: "'Inter', system-ui, sans-serif",
                                     fontWeight: 700,
                                     fontSize:   16,
                                     color:      'var(--foreground)',
@@ -355,7 +355,7 @@ export default function Home() {
 
                     <h2
                         style={{
-                            fontFamily:    "'Plus Jakarta Sans', sans-serif",
+                            fontFamily:    "'Inter', system-ui, sans-serif",
                             fontWeight:    700,
                             fontSize:      22,
                             color:         'var(--foreground)',
@@ -402,7 +402,7 @@ export default function Home() {
                             color:      'var(--accent-foreground)',
                             fontSize:   14,
                             fontWeight: 700,
-                            fontFamily: "'Plus Jakarta Sans', sans-serif",
+                            fontFamily: "'Inter', system-ui, sans-serif",
                             opacity:    hostLoading || !username.trim() ? 0.6 : 1,
                         }}
                     >
@@ -438,7 +438,7 @@ export default function Home() {
 
                     <h2
                         style={{
-                            fontFamily: "'Plus Jakarta Sans', sans-serif",
+                            fontFamily: "'Inter', system-ui, sans-serif",
                             fontWeight: 700,
                             fontSize: 22,
                             color: 'var(--foreground)',
@@ -499,7 +499,7 @@ export default function Home() {
                                 color: 'var(--accent-foreground)',
                                 fontSize: 14,
                                 fontWeight: 700,
-                                fontFamily: "'Plus Jakarta Sans', sans-serif",
+                                fontFamily: "'Inter', system-ui, sans-serif",
                                 opacity: loginLoading || !loginUsername.trim() || !loginPassphrase.trim() ? 0.6 : 1,
                             }}
                         >
@@ -541,7 +541,7 @@ export default function Home() {
 
                     <h2
                         style={{
-                            fontFamily:    "'Plus Jakarta Sans', sans-serif",
+                            fontFamily:    "'Inter', system-ui, sans-serif",
                             fontWeight:    700,
                             fontSize:      22,
                             color:         'var(--foreground)',
@@ -615,7 +615,7 @@ export default function Home() {
                             color:      'var(--accent-foreground)',
                             fontSize:   14,
                             fontWeight: 700,
-                            fontFamily: "'Plus Jakarta Sans', sans-serif",
+                            fontFamily: "'Inter', system-ui, sans-serif",
                         }}
                     >
                         Create my first trip →
@@ -650,7 +650,7 @@ export default function Home() {
 
                     <h2
                         style={{
-                            fontFamily:    "'Plus Jakarta Sans', sans-serif",
+                            fontFamily:    "'Inter', system-ui, sans-serif",
                             fontWeight:    700,
                             fontSize:      22,
                             color:         'var(--foreground)',
@@ -714,7 +714,7 @@ export default function Home() {
                                 color:      'white',
                                 fontSize:   14,
                                 fontWeight: 700,
-                                fontFamily: "'Plus Jakarta Sans', sans-serif",
+                                fontFamily: "'Inter', system-ui, sans-serif",
                                 opacity:    joinLoading || !roomCode.trim() || pin.length !== 4 ? 0.6 : 1,
                             }}
                         >
@@ -741,7 +741,7 @@ export default function Home() {
             >
                 <h1
                     style={{
-                        fontFamily:    "'Plus Jakarta Sans', sans-serif",
+                        fontFamily:    "'Inter', system-ui, sans-serif",
                         fontWeight:    800,
                         fontSize:      20,
                         color:         'var(--foreground)',
@@ -759,7 +759,7 @@ export default function Home() {
                 <div className="flex items-center justify-between mb-8">
                     <h2
                         style={{
-                            fontFamily:    "'Plus Jakarta Sans', sans-serif",
+                            fontFamily:    "'Inter', system-ui, sans-serif",
                             fontWeight:    700,
                             fontSize:      24,
                             color:         'var(--foreground)',
@@ -855,7 +855,7 @@ export default function Home() {
                                     />
                                 </div>
                                 <div className="p-4">
-                                    <h3 style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 700, fontSize: 15, color: 'var(--foreground)', marginBottom: 4 }}>
+                                    <h3 style={{ fontFamily: "'Inter', system-ui, sans-serif", fontWeight: 700, fontSize: 15, color: 'var(--foreground)', marginBottom: 4 }}>
                                         {trip.name}
                                     </h3>
                                     <p style={{ fontSize: 12, color: 'var(--muted-foreground)' }}>

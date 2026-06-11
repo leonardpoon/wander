@@ -3,6 +3,7 @@ import type { NextApiRequest, NextApiResponse } from 'next'
 import bcrypt from 'bcryptjs'
 import { tripRepository } from '../../../entity/TripRepository'
 import { destinationRepository } from '../../../entity/destinationRepository'
+import { todoRepository } from '../../../entity/todoRepository'
 import { CreateDestinationPayload } from '../../../entity/Destination'
 import { CreateColumnPayload } from '../../../entity/Column'
 import { fetchDestinationPhoto, geocodeDestination } from '../../../controller/destinationAssets'
@@ -106,6 +107,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
         await tripRepository.createColumns(columnPayloads)
         await tripRepository.addMember(trip.id, owner_id, 'owner')
+        await Promise.all(['To Do', 'In Progress', 'Awaiting', 'Done'].map((label, position) =>
+            todoRepository.createColumn({
+                trip_id: trip.id,
+                label,
+                position,
+            })
+        ))
 
         const { pin_hash, ...safeTrip } = trip as any
         return res.status(200).json({ trip: safeTrip, destinations: createdDests })

@@ -123,16 +123,27 @@ export const fxService = {
 
     // US-27: compute budget summary for entire trip
     async getBudgetSummary(
-        cards: {category: string, budget_amount: number | null}[],
+        cards: {category: string, budget_amount: number | null; budget_currency?: string | null}[],
         tripCurrency: string,
         homeCurrency: string
     ): Promise<BudgetSummary> {
         const byCategory: Record<string, number> = {}
 
-        // sum budget amounts by category
+        // sum budget amounts by category in the trip currency
         for (const card of cards) {
             if (!card.budget_amount) continue 
-            byCategory[card.category] = (byCategory[card.category] ?? 0) + card.budget_amount
+
+            const sourceCurrency = card.budget_currency ?? tripCurrency
+            let tripCurrencyAmount = card.budget_amount
+
+            if (sourceCurrency !== tripCurrency) {
+                const rate = await getRate(sourceCurrency, tripCurrency)
+                if (rate) {
+                    tripCurrencyAmount = Math.round(card.budget_amount * rate.rate * 100) / 100
+                }
+            }
+
+            byCategory[card.category] = (byCategory[card.category] ?? 0) + tripCurrencyAmount
         }
 
         const totalBudget = Object.values(byCategory).reduce((a, b) => a + b, 0)
@@ -164,18 +175,26 @@ export const fxService = {
             { code: 'JPY', name: 'Japanese Yen' },
             { code: 'SGD', name: 'Singapore Dollar' },
             { code: 'AUD', name: 'Australian Dollar' },
+            { code: 'BRL', name: 'Brazilian Real' },
             { code: 'CAD', name: 'Canadian Dollar' },
             { code: 'CHF', name: 'Swiss Franc' },
+            { code: 'CNY', name: 'Chinese Yuan' },
+            { code: 'DKK', name: 'Danish Krone' },
             { code: 'HKD', name: 'Hong Kong Dollar' },
             { code: 'KRW', name: 'South Korean Won' },
             { code: 'THB', name: 'Thai Baht' },
             { code: 'MYR', name: 'Malaysian Ringgit' },
+            { code: 'MXN', name: 'Mexican Peso' },
+            { code: 'NOK', name: 'Norwegian Krone' },
+            { code: 'SEK', name: 'Swedish Krona' },
+            { code: 'TRY', name: 'Turkish Lira' },
             { code: 'IDR', name: 'Indonesian Rupiah' },
             { code: 'PHP', name: 'Philippine Peso' },
             { code: 'VND', name: 'Vietnamese Dong' },
             { code: 'INR', name: 'Indian Rupee' },
             { code: 'AED', name: 'UAE Dirham' },
             { code: 'NZD', name: 'New Zealand Dollar' },
+            { code: 'ZAR', name: 'South African Rand' },
         ]
     },
 
