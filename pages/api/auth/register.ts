@@ -17,15 +17,24 @@ function getRequestCountry(req: NextApiRequest): string | null {
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
     if (req.method !== 'POST') return res.status(405).end()
 
-    const { username, passphrase, displayName } = req.body
+    const { username, password, passphrase, displayName } = req.body
+    const rawPassword = password ?? passphrase
 
     try {
+        if (!username?.trim() || !rawPassword?.trim()) {
+            return res.status(400).json({ error: 'Enter a name and password' })
+        }
+
+        if (rawPassword.length < 6) {
+            return res.status(400).json({ error: 'Password must be at least 6 characters' })
+        }
+
         const taken = await userRepository.usernameExists(username)
         if (taken) {
             return res.status(400).json({ error: `Username "${username}" is already taken` })
         }
 
-        const passphraseHash = await bcrypt.hash(passphrase, 12)
+        const passphraseHash = await bcrypt.hash(rawPassword, 12)
         const homeCurrency = getCurrencyForCountryCode(getRequestCountry(req)) ?? 'SGD'
 
         const user = await userRepository.createUser({

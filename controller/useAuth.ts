@@ -8,11 +8,11 @@ export function useAuth() {
     const {setUser, clearUser, setLoading, setError, persistSession, getPersistedSession, clearPersistedSession} = useSessionStore()
 
     // US-01, US-04: register new user
-    async function register(username: string, passphrase: string, displayName?: string) {
+    async function register(username: string, password: string, displayName?: string) {
         setLoading(true)
         setError(null)
         try {
-            const user = await authService.register(username, passphrase, displayName)
+            const user = await authService.register(username, password, displayName)
             setUser(user)
             persistSession(user.id)
             return user
@@ -25,11 +25,11 @@ export function useAuth() {
     }
 
     // US-03: log in returning user
-    async function login(username: string, passphrase: string) {
+    async function login(username: string, password: string) {
         setLoading(true)
         setError(null)
         try {
-            const user = await authService.login(username, passphrase)
+            const user = await authService.login(username, password)
             setUser(user)
             persistSession(user.id)
             return user

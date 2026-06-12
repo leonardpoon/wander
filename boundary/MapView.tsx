@@ -1,10 +1,10 @@
 // boundary/MapView.tsx
 // Map view with cleaner basemap layers, day filtering, grouped pins, and route overlay.
 
-import { useMemo, useState, useEffect } from 'react'
+import { useMemo, useRef, useState, useEffect } from 'react'
 import MapLibreMap, { Marker, Source, Layer, NavigationControl } from 'react-map-gl/maplibre'
 import * as maplibregl from 'maplibre-gl'
-import { Layers, Navigation, X } from 'lucide-react'
+import { Navigation, X } from 'lucide-react'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { useCards } from '../controller/useCards'
 import { mapService, RouteResult } from '../controller/mapService'
@@ -13,7 +13,6 @@ import { Column } from '../entity/Column'
 
 maplibregl.setWorkerUrl('/maplibre-gl-csp-worker.js')
 
-type MapLayerId = 'clean' | 'minimal' | 'street' | 'dark'
 type PinMode = 'cards' | 'groups'
 
 interface DisplayPin {
@@ -26,6 +25,40 @@ interface DisplayPin {
     color: string
     count: number
     cards: Card[]
+}
+
+function distanceKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
+    const radiusKm = 6371
+    const dLat = ((b.lat - a.lat) * Math.PI) / 180
+    const dLng = ((b.lng - a.lng) * Math.PI) / 180
+    const lat1 = (a.lat * Math.PI) / 180
+    const lat2 = (b.lat * Math.PI) / 180
+    const h = Math.sin(dLat / 2) ** 2
+        + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2
+    return 2 * radiusKm * Math.asin(Math.sqrt(h))
+}
+
+function getGroupPinCoordinates(cards: Card[], fallback: { lat: number; lng: number }): { lat: number; lng: number } {
+    const geocodedCards = cards
+        .filter((card) => card.lat !== null && card.lng !== null)
+        .sort((a, b) => a.position - b.position)
+
+    if (geocodedCards.length === 0) return fallback
+    if (geocodedCards.length === 1) return { lat: geocodedCards[0].lat!, lng: geocodedCards[0].lng! }
+
+    const primary = { lat: geocodedCards[0].lat!, lng: geocodedCards[0].lng! }
+    const farthestDistance = Math.max(
+        ...geocodedCards.map((card) =>
+            distanceKm(primary, { lat: card.lat!, lng: card.lng! })
+        )
+    )
+
+    if (farthestDistance > 1) return primary
+
+    return {
+        lat: geocodedCards.reduce((sum, card) => sum + card.lat!, 0) / geocodedCards.length,
+        lng: geocodedCards.reduce((sum, card) => sum + card.lng!, 0) / geocodedCards.length,
+    }
 }
 
 const CLEAN_STYLE = {
@@ -45,67 +78,15 @@ const CLEAN_STYLE = {
     }],
 }
 
-const MINIMAL_STYLE = {
-    version: 8 as const,
-    sources: {
-        cartoMinimal: {
-            type: 'raster' as const,
-            tiles: ['https://basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}.png'],
-            tileSize: 256,
-            attribution: 'OpenStreetMap contributors, CARTO',
-        },
-    },
-    layers: [{
-        id: 'carto-minimal-tiles',
-        type: 'raster' as const,
-        source: 'cartoMinimal',
-    }],
-}
-
-const STREET_STYLE = {
-    version: 8 as const,
-    sources: {
-        osm: {
-            type: 'raster' as const,
-            tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
-            tileSize: 256,
-            attribution: 'OpenStreetMap contributors',
-        },
-    },
-    layers: [{
-        id: 'osm-tiles',
-        type: 'raster' as const,
-        source: 'osm',
-    }],
-}
-
-const DARK_STYLE = {
-    version: 8 as const,
-    sources: {
-        cartoDark: {
-            type: 'raster' as const,
-            tiles: ['https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png'],
-            tileSize: 256,
-            attribution: 'OpenStreetMap contributors, CARTO',
-        },
-    },
-    layers: [{
-        id: 'carto-dark-tiles',
-        type: 'raster' as const,
-        source: 'cartoDark',
-    }],
-}
-
 interface MapViewProps {
     tripId: string
     columns: Column[]
-    darkMode: boolean
 }
 
-export function MapView({ tripId, columns, darkMode }: MapViewProps) {
+export function MapView({ tripId, columns }: MapViewProps) {
     const { cards, cardGroups } = useCards(tripId)
+    const mapRef = useRef<maplibregl.Map | null>(null)
 
-    const [mapLayer, setMapLayer] = useState<MapLayerId>(darkMode ? 'dark' : 'clean')
     const [pinMode, setPinMode] = useState<PinMode>('groups')
     const [selectedDay, setSelectedDay] = useState<string>('all')
     const [route, setRoute] = useState<RouteResult | null>(null)
@@ -195,13 +176,11 @@ export function MapView({ tripId, columns, darkMode }: MapViewProps) {
             const existing = pinsByGroup.get(card.group_id)
             if (existing) {
                 const nextCards = [...existing.cards, card]
-                const geocodedCards = nextCards.filter((groupCard) =>
-                    groupCard.lat !== null && groupCard.lng !== null
-                )
+                const coords = getGroupPinCoordinates(nextCards, existing)
                 pinsByGroup.set(card.group_id, {
                     ...existing,
-                    lat: geocodedCards.reduce((sum, groupCard) => sum + groupCard.lat!, 0) / geocodedCards.length,
-                    lng: geocodedCards.reduce((sum, groupCard) => sum + groupCard.lng!, 0) / geocodedCards.length,
+                    lat: coords.lat,
+                    lng: coords.lng,
                     count: nextCards.length,
                     cards: nextCards,
                 })
@@ -226,6 +205,26 @@ export function MapView({ tripId, columns, darkMode }: MapViewProps) {
     useEffect(() => {
         setSelectedPin(null)
     }, [selectedDay, pinMode])
+
+    useEffect(() => {
+        const map = mapRef.current
+        if (!map || pins.length === 0) return
+
+        const minLat = Math.min(...pins.map((pin) => pin.lat))
+        const maxLat = Math.max(...pins.map((pin) => pin.lat))
+        const minLng = Math.min(...pins.map((pin) => pin.lng))
+        const maxLng = Math.max(...pins.map((pin) => pin.lng))
+
+        if (minLat === maxLat && minLng === maxLng) {
+            map.flyTo({ center: [minLng, minLat], zoom: 14, essential: true })
+            return
+        }
+
+        map.fitBounds(
+            [[minLng, minLat], [maxLng, maxLat]],
+            { padding: 80, maxZoom: 15, duration: 600 }
+        )
+    }, [pins])
 
     useEffect(() => {
         if (!showRoute || pins.length < 2) {
@@ -254,13 +253,6 @@ export function MapView({ tripId, columns, darkMode }: MapViewProps) {
     const initLat = bounds ? (bounds.minLat + bounds.maxLat) / 2 : 1.3521
     const initLng = bounds ? (bounds.minLng + bounds.maxLng) / 2 : 103.8198
     const initZoom = pins.length > 0 ? 11 : 3
-    const mapStyle = mapLayer === 'dark'
-        ? DARK_STYLE
-        : mapLayer === 'minimal'
-            ? MINIMAL_STYLE
-            : mapLayer === 'street'
-                ? STREET_STYLE
-                : CLEAN_STYLE
 
     const routeGeoJSON = route ? {
         type: 'FeatureCollection' as const,
@@ -278,13 +270,16 @@ export function MapView({ tripId, columns, darkMode }: MapViewProps) {
         <div className="relative w-full h-full">
             <MapLibreMap
                 mapLib={maplibregl}
+                ref={(instance) => {
+                    mapRef.current = instance?.getMap() ?? null
+                }}
                 initialViewState={{
                     latitude: initLat,
                     longitude: initLng,
                     zoom: initZoom,
                 }}
                 style={{ width: '100%', height: '100%' }}
-                mapStyle={mapStyle}
+                mapStyle={CLEAN_STYLE}
             >
                 <NavigationControl position="top-right" />
 
@@ -339,33 +334,6 @@ export function MapView({ tripId, columns, darkMode }: MapViewProps) {
                 className="absolute top-4 left-4 flex flex-wrap items-center gap-2"
                 style={{ zIndex: 10, maxWidth: 'calc(100% - 96px)' }}
             >
-                <div
-                    className="flex items-center gap-1 rounded-xl px-2 py-2"
-                    style={{
-                        background: 'var(--card)',
-                        boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-                        border: '1px solid var(--border)',
-                    }}
-                >
-                    <Layers size={13} style={{ color: 'var(--muted-foreground)' }} />
-                    <select
-                        value={mapLayer}
-                        onChange={(e) => setMapLayer(e.target.value as MapLayerId)}
-                        className="outline-none"
-                        style={{
-                            background: 'transparent',
-                            color: 'var(--foreground)',
-                            fontSize: 12,
-                            fontWeight: 600,
-                        }}
-                    >
-                        <option value="clean">Clean</option>
-                        <option value="minimal">Minimal</option>
-                        <option value="street">Street</option>
-                        <option value="dark">Dark</option>
-                    </select>
-                </div>
-
                 <select
                     value={selectedDay}
                     onChange={(e) => setSelectedDay(e.target.value)}

@@ -6,7 +6,8 @@ import { userRepository } from '../../../entity/userRepository'
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
     if (req.method !== 'POST') return res.status(405).end()
 
-    const { username, passphrase } = req.body
+    const { username, password, passphrase } = req.body
+    const rawPassword = password ?? passphrase
 
     try {
         const user = await userRepository.findUsername(username)
@@ -14,9 +15,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             return res.status(400).json({ error: 'Username not found' })
         }
 
-        const match = await bcrypt.compare(passphrase, user.passphrase_hash)
+        const match = await bcrypt.compare(rawPassword, user.passphrase_hash)
         if (!match) {
-            return res.status(400).json({ error: 'Incorrect passphrase' })
+            return res.status(400).json({ error: 'Incorrect password' })
         }
 
         await userRepository.updateLastSeen(user.id)

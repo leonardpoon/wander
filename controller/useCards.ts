@@ -522,24 +522,25 @@ export function useCards(tripId: string | null) {
             setError(null)
             const updated = await cardService.updateCard(cardId, { group_id: null })
             updateCard(updated)
-
-            const remainingCards = cards.filter(
-                (candidate) => candidate.group_id === card.group_id && candidate.id !== cardId
-            )
-
-            if (remainingCards.length <= 1) {
-                for (const remaining of remainingCards) {
-                    const ungrouped = await cardService.updateCard(remaining.id, { group_id: null })
-                    updateCard(ungrouped)
-                }
-                await cardService.deleteGroup(card.group_id)
-                removeCardGroup(card.group_id)
-            }
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Failed to remove card from group')
             throw err
         }
     }, [cards])
+
+    const renameCardGroup = useCallback(async (groupId: string, title: string) => {
+        const cleanTitle = title.trim()
+        if (!cleanTitle) return
+
+        try {
+            setError(null)
+            const group = await cardService.updateGroup(groupId, { title: cleanTitle })
+            updateCardGroup(group)
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to rename group')
+            throw err
+        }
+    }, [])
 
     // US-38: add a custom todo column
     const addTodoCol = useCallback(async (label: string) => {
@@ -717,6 +718,7 @@ export function useCards(tripId: string | null) {
         createGroupFromCards,
         addCardToGroup,
         removeCardFromGroup,
+        renameCardGroup,
         deleteCard,
         voteOnCard,
         setActiveCard,

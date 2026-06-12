@@ -140,6 +140,8 @@ export const cardService = {
 
     // US-18: update an existing card
     async updateCard(cardId: string, payload: UpdateCardPayload & {location_name?: string | null}): Promise<Card> {
+        let currentCard: Card | null = null
+        const groupIsChanging = 'group_id' in payload
 
         // US-14: only eating and travel cards have sub-category options
         if (payload.sub_category && payload.category && !allowsSubCategory(payload.category)) {
@@ -151,9 +153,29 @@ export const cardService = {
             throw new Error('time_value must be provided if fixed_time is true')
         }
 
+        if (groupIsChanging) {
+            currentCard = await cardRepository.findById(cardId)
+            if (!currentCard) throw new Error('Card not found')
+        }
+
+        if (payload.group_id) {
+            if (!currentCard) throw new Error('Card not found')
+
+            const group = await cardRepository.findGroupById(payload.group_id)
+            if (!group) {
+                payload.group_id = null
+            } else {
+                const nextColumnId = payload.column_id ?? currentCard.column_id
+                if (group.trip_id !== currentCard.trip_id || group.column_id !== nextColumnId) {
+                    throw new Error('Cards can only be grouped within the same day')
+                }
+            }
+
+        }
+
         // US-15: re-geocode if location name was changed
         if ('location_name' in payload || 'title' in payload) {
-            const currentCard = await cardRepository.findById(cardId)
+            currentCard = currentCard ?? await cardRepository.findById(cardId)
             const nextTitle = payload.title ?? currentCard?.title ?? ''
             const nextLocation = 'location_name' in payload
                 ? payload.location_name
@@ -174,7 +196,17 @@ export const cardService = {
             }
         }
 
-        return await cardRepository.updateCard(cardId, payload)
+        const updatedCard = await cardRepository.updateCard(cardId, payload)
+
+        if (
+            groupIsChanging
+            && currentCard?.group_id
+            && currentCard.group_id !== (payload.group_id ?? null)
+        ) {
+            await cleanupGroup(currentCard.group_id, currentCard.column_id)
+        }
+
+        return updatedCard
     },
 
     // US-12: move a card to a different column 
@@ -191,16 +223,29 @@ export const cardService = {
         
         const sourceColumnId = card.column_id
         const sourceGroupId = card.group_id ?? null
-        const targetLaneGroupId = targetGroupId !== undefined ? targetGroupId : sourceGroupId
         const movingBetweenColumns = sourceColumnId !== targetColumnId
+        const targetLaneGroupId = targetGroupId !== undefined
+            ? targetGroupId
+            : movingBetweenColumns
+                ? null
+                : sourceGroupId
         const movingBetweenLanes = movingBetweenColumns || sourceGroupId !== targetLaneGroupId
 
-        await cardRepository.moveCard(cardId, targetColumnId, targetPosition, targetGroupId)
+        if (targetLaneGroupId) {
+            const targetGroup = await cardRepository.findGroupById(targetLaneGroupId)
+            if (!targetGroup) throw new Error('Group not found')
+            if (targetGroup.trip_id !== card.trip_id || targetGroup.column_id !== targetColumnId) {
+                throw new Error('Cards can only be grouped within the same day')
+            }
+        }
+
+        await cardRepository.moveCard(cardId, targetColumnId, targetPosition, targetLaneGroupId)
 
         await reindexLaneWithMovedCard(cardId, targetColumnId, targetPosition, targetLaneGroupId)
 
         if (movingBetweenLanes) {
             await reindexLane(sourceColumnId, sourceGroupId)
+            if (sourceGroupId) await cleanupGroup(sourceGroupId, sourceColumnId)
         }
     },
 
@@ -211,7 +256,8 @@ export const cardService = {
 
         await cardRepository.deleteCard(cardId)
 
-        await reindexColumn(card.column_id)
+        await reindexLane(card.column_id, card.group_id ?? null)
+        if (card.group_id) await cleanupGroup(card.group_id, card.column_id)
     },
 
     // US-11: load all cards for a trip
@@ -347,4 +393,19 @@ async function reindexLaneWithMovedCard(
         id: card.id,
         position: index,
     })))
+}
+
+async function cleanupGroup(groupId: string, columnId: string): Promise<void> {
+    const groupCards = (await cardRepository.findByColumn(columnId))
+        .filter((card) => card.group_id === groupId)
+        .sort((a, b) => a.position - b.position)
+
+    if (groupCards.length > 1) return
+
+    for (const card of groupCards) {
+        await cardRepository.updateCard(card.id, { group_id: null })
+    }
+
+    await cardRepository.deleteGroup(groupId)
+    await reindexLane(columnId, null)
 }

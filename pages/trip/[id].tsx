@@ -59,7 +59,6 @@ export default function TripPage() {
     const [activeTab,    setActiveTab]    = useState<TabType>('planner')
     const [showShare,    setShowShare]    = useState(false)
     const [showExport,   setShowExport]   = useState(false)
-    const [darkMode,     setDarkMode]     = useState(false)
     const [savedTripPin, setSavedTripPin] = useState<string | null>(null)
     const [customCategories, setCustomCategories] = useState<CardCategoryOption[]>([])
     const [categoryFilters, setCategoryFilters] = useState<Record<string, boolean>>(
@@ -311,7 +310,6 @@ export default function TripPage() {
                     <MapView
                         tripId={trip.id}
                         columns={columns}
-                        darkMode={darkMode}
                     />
                 )}
 

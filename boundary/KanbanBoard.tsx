@@ -52,6 +52,7 @@ export function KanbanBoard({
         createGroupFromCards,
         addCardToGroup,
         removeCardFromGroup,
+        renameCardGroup,
         deleteCard,
         setActiveCard,
         setSidePanelColumnId,
@@ -134,6 +135,7 @@ export function KanbanBoard({
                             onCreateGroup={createGroupFromCards}
                             onAddCardToGroup={addCardToGroup}
                             onRemoveCardFromGroup={removeCardFromGroup}
+                            onRenameGroup={renameCardGroup}
                         />
                     ))}
 

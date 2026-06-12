@@ -16,6 +16,10 @@ import { CardDropZone } from './CardDropZone'
 
 const DND_CARD = 'CARD'
 
+type TimelineItem =
+    | { type: 'card'; id: string; position: number; card: Card; index: number }
+    | { type: 'group'; id: string; position: number; group: CardGroup; cards: Card[] }
+
 interface KanbanColumnProps {
     columnId:    string
     date:        string
@@ -36,6 +40,7 @@ interface KanbanColumnProps {
     onCreateGroup: (sourceCardId: string, targetCardId: string) => Promise<void>
     onAddCardToGroup: (cardId: string, groupId: string) => Promise<void>
     onRemoveCardFromGroup: (cardId: string) => Promise<void>
+    onRenameGroup: (groupId: string, title: string) => Promise<void>
 }
 
 export function KanbanColumn({
@@ -53,6 +58,7 @@ export function KanbanColumn({
     onCreateGroup,
     onAddCardToGroup,
     onRemoveCardFromGroup,
+    onRenameGroup,
 }: KanbanColumnProps) {
     const columnRef = useRef<HTMLDivElement>(null)
 
@@ -73,11 +79,12 @@ export function KanbanColumn({
     })
 
     drop(columnRef)
-    const looseCards = cards.filter((card) => !card.group_id)
+    const knownGroupIds = new Set(groups.map((group) => group.id))
+    const looseCards = cards.filter((card) => !card.group_id || !knownGroupIds.has(card.group_id))
     const cardsByGroup = new Map<string, Card[]>()
 
     for (const card of cards) {
-        if (!card.group_id) continue
+        if (!card.group_id || !knownGroupIds.has(card.group_id)) continue
         const groupCards = cardsByGroup.get(card.group_id) ?? []
         groupCards.push(card)
         cardsByGroup.set(card.group_id, groupCards)
@@ -86,6 +93,30 @@ export function KanbanColumn({
     const visibleGroups = groups
         .filter((group) => group.column_id === columnId && (cardsByGroup.get(group.id)?.length ?? 0) > 0)
         .sort((a, b) => a.position - b.position)
+
+    const timelineItems: TimelineItem[] = [
+        ...looseCards.map((card, index) => ({
+            type: 'card' as const,
+            id: card.id,
+            position: card.position,
+            card,
+            index,
+        })),
+        ...visibleGroups.map((group) => {
+            const groupCards = (cardsByGroup.get(group.id) ?? []).sort((a, b) => a.position - b.position)
+            return {
+                type: 'group' as const,
+                id: group.id,
+                position: group.position,
+                group,
+                cards: groupCards,
+            }
+        }),
+    ].sort((a, b) => {
+        if (a.position !== b.position) return a.position - b.position
+        if (a.type === b.type) return a.id.localeCompare(b.id)
+        return a.type === 'card' ? -1 : 1
+    })
 
     // format date for column header: "Mon 12 Jun"
     function formatDate(dateStr: string): string {
@@ -197,42 +228,42 @@ export function KanbanColumn({
             >
                 <CardDropZone
                     columnId={columnId}
-                    position={looseCards[0]?.position ?? 0}
+                    position={timelineItems[0]?.position ?? 0}
                     groupId={null}
                     onMoveCard={onMoveCard}
                 />
-                {looseCards.map((card, index) => (
-                    <div key={card.id} className="flex flex-col" style={{ gap: 8 }}>
-                        <CardItem
-                            card={card}
-                            index={index}
-                            columnId={columnId}
-                            onEdit={() => onEditCard(card)}
-                            categoryOptions={categoryOptions}
-                            onMove={onMoveCard}
-                            onGroupWith={onCreateGroup}
-                        />
+                {timelineItems.map((item) => (
+                    <div key={`${item.type}:${item.id}`} className="flex flex-col" style={{ gap: 8 }}>
+                        {item.type === 'card' ? (
+                            <CardItem
+                                card={item.card}
+                                index={item.index}
+                                columnId={columnId}
+                                onEdit={() => onEditCard(item.card)}
+                                categoryOptions={categoryOptions}
+                                onMove={onMoveCard}
+                                onGroupWith={onCreateGroup}
+                            />
+                        ) : (
+                            <CardGroupItem
+                                group={item.group}
+                                cards={item.cards}
+                                columnId={columnId}
+                                categoryOptions={categoryOptions}
+                                onEditCard={onEditCard}
+                                onMoveCard={onMoveCard}
+                                onAddCardToGroup={onAddCardToGroup}
+                                onRemoveCardFromGroup={onRemoveCardFromGroup}
+                                onRenameGroup={onRenameGroup}
+                            />
+                        )}
                         <CardDropZone
                             columnId={columnId}
-                            position={card.position + 1}
+                            position={item.position + 1}
                             groupId={null}
                             onMoveCard={onMoveCard}
                         />
                     </div>
-                ))}
-
-                {visibleGroups.map((group) => (
-                    <CardGroupItem
-                        key={group.id}
-                        group={group}
-                        cards={(cardsByGroup.get(group.id) ?? []).sort((a, b) => a.position - b.position)}
-                        columnId={columnId}
-                        categoryOptions={categoryOptions}
-                        onEditCard={onEditCard}
-                        onMoveCard={onMoveCard}
-                        onAddCardToGroup={onAddCardToGroup}
-                        onRemoveCardFromGroup={onRemoveCardFromGroup}
-                    />
                 ))}
 
                 {cards.length === 0 && (

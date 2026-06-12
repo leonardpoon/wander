@@ -259,6 +259,18 @@ export const cardRepository = {
         return data as CardGroup[]
     },
 
+    async findGroupById(groupId: string): Promise<CardGroup | null> {
+        const {data, error} = await supabase
+            .from('card_groups')
+            .select('*')
+            .eq('id', groupId)
+            .maybeSingle()
+
+        if (isMissingGroupsTable(error)) return null
+        if (error) throw new Error(`findGroupById failed: ${error.message}`)
+        return data as CardGroup | null
+    },
+
     async createGroup(payload: CreateCardGroupPayload): Promise<CardGroup> {
         const {data, error} = await supabase
             .from('card_groups')

@@ -1,6 +1,6 @@
-import { useRef } from 'react'
+import { useRef, useState } from 'react'
 import { useDrop } from 'react-dnd'
-import { Layers } from 'lucide-react'
+import { ChevronDown, ChevronRight, Layers } from 'lucide-react'
 import { Card, CardGroup } from '../entity/Cards'
 import { CardCategoryOption } from '../entity/CardCategories'
 import { CardItem } from './CardItem'
@@ -22,6 +22,7 @@ interface CardGroupItemProps {
     ) => Promise<void>
     onAddCardToGroup: (cardId: string, groupId: string) => Promise<void>
     onRemoveCardFromGroup: (cardId: string) => Promise<void>
+    onRenameGroup: (groupId: string, title: string) => Promise<void>
 }
 
 export function CardGroupItem({
@@ -33,8 +34,12 @@ export function CardGroupItem({
     onMoveCard,
     onAddCardToGroup,
     onRemoveCardFromGroup,
+    onRenameGroup,
 }: CardGroupItemProps) {
     const groupRef = useRef<HTMLDivElement>(null)
+    const [collapsed, setCollapsed] = useState(false)
+    const [editingTitle, setEditingTitle] = useState(false)
+    const [draftTitle, setDraftTitle] = useState(group.title)
 
     const [{ isOver }, drop] = useDrop<
         { cardId: string; sourceColumnId: string; sourceGroupId?: string | null },
@@ -71,6 +76,15 @@ export function CardGroupItem({
         >
             <div className="flex items-center justify-between gap-2 px-1 pb-2">
                 <div className="flex min-w-0 items-center gap-1.5">
+                    <button
+                        type="button"
+                        onClick={() => setCollapsed((value) => !value)}
+                        className="rounded-md p-0.5"
+                        style={{ color: group.color, flexShrink: 0 }}
+                        title={collapsed ? 'Expand group' : 'Collapse group'}
+                    >
+                        {collapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
+                    </button>
                     <span
                         className="flex items-center justify-center rounded-full"
                         style={{
@@ -83,18 +97,56 @@ export function CardGroupItem({
                     >
                         <Layers size={11} />
                     </span>
-                    <span
-                        style={{
-                            color: 'var(--foreground)',
-                            fontSize: 12,
-                            fontWeight: 700,
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap',
-                        }}
-                    >
-                        {group.title}
-                    </span>
+                    {editingTitle ? (
+                        <input
+                            value={draftTitle}
+                            autoFocus
+                            onChange={(e) => setDraftTitle(e.target.value)}
+                            onBlur={async () => {
+                                setEditingTitle(false)
+                                if (draftTitle.trim() && draftTitle.trim() !== group.title) {
+                                    await onRenameGroup(group.id, draftTitle)
+                                } else {
+                                    setDraftTitle(group.title)
+                                }
+                            }}
+                            onKeyDown={async (e) => {
+                                if (e.key === 'Enter') {
+                                    e.currentTarget.blur()
+                                }
+                                if (e.key === 'Escape') {
+                                    setDraftTitle(group.title)
+                                    setEditingTitle(false)
+                                }
+                            }}
+                            className="min-w-0 rounded-md px-1 py-0.5 outline-none"
+                            style={{
+                                background: 'var(--card)',
+                                border: '1px solid var(--border)',
+                                color: 'var(--foreground)',
+                                fontSize: 12,
+                                fontWeight: 700,
+                                width: '100%',
+                            }}
+                        />
+                    ) : (
+                        <button
+                            type="button"
+                            onClick={() => setEditingTitle(true)}
+                            className="min-w-0 text-left"
+                            title="Rename group"
+                            style={{
+                                color: 'var(--foreground)',
+                                fontSize: 12,
+                                fontWeight: 700,
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                            }}
+                        >
+                            {group.title}
+                        </button>
+                    )}
                 </div>
                 <span
                     className="rounded-full px-2 py-0.5"
@@ -109,6 +161,7 @@ export function CardGroupItem({
                 </span>
             </div>
 
+            {!collapsed && (
             <div className="flex flex-col" style={{ gap: 8 }}>
                 <CardDropZone
                     columnId={columnId}
@@ -137,6 +190,7 @@ export function CardGroupItem({
                     </div>
                 ))}
             </div>
+            )}
         </div>
     )
 }

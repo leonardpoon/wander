@@ -25,11 +25,11 @@ export const authService = {
     },
 
     // US-01, US-04: register via API route (bcrypt runs server-side)
-    async register(username: string, passphrase: string, displayName?: string): Promise<SafeUser> {
+    async register(username: string, password: string, displayName?: string): Promise<SafeUser> {
         const response = await fetch('/api/auth/register', {
             method:  'POST',
             headers: { 'Content-Type': 'application/json' },
-            body:    JSON.stringify({ username, passphrase, displayName }),
+            body:    JSON.stringify({ username, password, displayName }),
         })
 
         const data = await response.json()
@@ -38,11 +38,11 @@ export const authService = {
     },
 
     // US-03: login via API route (bcrypt runs server-side)
-    async login(username: string, passphrase: string): Promise<SafeUser> {
+    async login(username: string, password: string): Promise<SafeUser> {
         const response = await fetch('/api/auth/login', {
             method:  'POST',
             headers: { 'Content-Type': 'application/json' },
-            body:    JSON.stringify({ username, passphrase }),
+            body:    JSON.stringify({ username, password }),
         })
 
         const data = await response.json()

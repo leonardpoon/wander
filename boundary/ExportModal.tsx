@@ -23,12 +23,34 @@ export function ExportModal({ tripName, cards, groups, columns, onClose }: Expor
         return columnsById.get(card.column_id)?.date ?? ''
     }
 
+    function getOrderedCards(): Card[] {
+        return cards
+            .slice()
+            .sort((a, b) => {
+                const columnA = columnsById.get(a.column_id)
+                const columnB = columnsById.get(b.column_id)
+                const columnPositionA = columnA?.position ?? Number.MAX_SAFE_INTEGER
+                const columnPositionB = columnB?.position ?? Number.MAX_SAFE_INTEGER
+
+                if (columnPositionA !== columnPositionB) return columnPositionA - columnPositionB
+
+                const groupA = a.group_id ? groupsById.get(a.group_id) : null
+                const groupB = b.group_id ? groupsById.get(b.group_id) : null
+                const boardPositionA = groupA?.position ?? a.position
+                const boardPositionB = groupB?.position ?? b.position
+
+                if (boardPositionA !== boardPositionB) return boardPositionA - boardPositionB
+                if ((a.group_id ?? '') !== (b.group_id ?? '')) return (a.group_id ?? '').localeCompare(b.group_id ?? '')
+                return a.position - b.position
+            })
+    }
+
     // CSV export — client-side, no backend needed
     function exportCSV() {
         setExporting('csv')
 
         const headers = ['Title', 'Group', 'Category', 'Sub-category', 'Date', 'Time', 'Location', 'Budget', 'Notes']
-        const rows = cards.map((c) => [
+        const rows = getOrderedCards().map((c) => [
             `"${c.title}"`,
             c.group_id ? `"${groupsById.get(c.group_id)?.title ?? 'Activity group'}"` : '',
             c.category,
@@ -145,22 +167,7 @@ export function ExportModal({ tripName, cards, groups, columns, onClose }: Expor
     }
 
     function getPrintableLines(): string[] {
-        const orderedCards = cards
-            .slice()
-            .sort((a, b) => {
-                const columnA = columnsById.get(a.column_id)
-                const columnB = columnsById.get(b.column_id)
-                const columnPositionA = columnA?.position ?? Number.MAX_SAFE_INTEGER
-                const columnPositionB = columnB?.position ?? Number.MAX_SAFE_INTEGER
-
-                if (columnPositionA !== columnPositionB) return columnPositionA - columnPositionB
-                if ((a.group_id ?? '') !== (b.group_id ?? '')) {
-                    const groupA = a.group_id ? groupsById.get(a.group_id)?.position ?? a.position : a.position
-                    const groupB = b.group_id ? groupsById.get(b.group_id)?.position ?? b.position : b.position
-                    if (groupA !== groupB) return groupA - groupB
-                }
-                return a.position - b.position
-            })
+        const orderedCards = getOrderedCards()
 
         const lines = [
             tripName,

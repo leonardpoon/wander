@@ -113,11 +113,46 @@ export function CardSidePanel({
     const [saving,       setSaving]       = useState(false)
     const [deleting,     setDeleting]     = useState(false)
     const [error,        setError]        = useState<string | null>(null)
+    const [locationPreview, setLocationPreview] = useState<{
+        status: 'idle' | 'checking' | 'found' | 'not-found'
+        lat: number | null
+        lng: number | null
+    }>({ status: 'idle', lat: null, lng: null })
 
     // reset sub_category when category changes
     useEffect(() => {
         setSubCategory('')
     }, [category])
+
+    useEffect(() => {
+        const cleanLocation = locationName.trim()
+        if (!cleanLocation) {
+            setLocationPreview({ status: 'idle', lat: null, lng: null })
+            return
+        }
+
+        let cancelled = false
+        setLocationPreview((preview) => ({
+            status: 'checking',
+            lat: preview.lat,
+            lng: preview.lng,
+        }))
+
+        const timeout = window.setTimeout(async () => {
+            const coords = await cardService.previewCardLocation(title.trim(), cleanLocation)
+            if (cancelled) return
+
+            setLocationPreview(coords
+                ? { status: 'found', lat: coords.lat, lng: coords.lng }
+                : { status: 'not-found', lat: null, lng: null }
+            )
+        }, 650)
+
+        return () => {
+            cancelled = true
+            window.clearTimeout(timeout)
+        }
+    }, [title, locationName])
 
     async function handleSave() {
         if (!title.trim()) {
@@ -347,8 +382,25 @@ export function CardSidePanel({
                         onFocus={(e) => e.currentTarget.style.borderColor = 'var(--ring)'}
                         onBlur={(e) => e.currentTarget.style.borderColor = 'var(--border)'}
                     />
-                    <p style={{ fontSize: 10, color: 'var(--muted-foreground)', marginTop: 4 }}>
-                        Geocoded via Nominatim on save
+                    <p
+                        style={{
+                            fontSize: 10,
+                            color: locationPreview.status === 'found'
+                                ? 'var(--success)'
+                                : locationPreview.status === 'not-found'
+                                    ? 'var(--warning)'
+                                    : 'var(--muted-foreground)',
+                            marginTop: 4,
+                        }}
+                    >
+                        {locationPreview.status === 'checking' && 'Checking map match...'}
+                        {locationPreview.status === 'found' && locationPreview.lat !== null && locationPreview.lng !== null && (
+                            <>
+                                Map preview: {locationPreview.lat.toFixed(5)}, {locationPreview.lng.toFixed(5)}
+                            </>
+                        )}
+                        {locationPreview.status === 'not-found' && 'No map match found yet. Try adding the mall, area, or city.'}
+                        {locationPreview.status === 'idle' && 'Add a place, mall, area, or city to preview the map match.'}
                     </p>
                 </div>
 

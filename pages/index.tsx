@@ -9,7 +9,7 @@ import { useAuth } from '../controller/useAuth'
 import { tripService } from '../controller/tripService'
 import { saveTripInvite } from '../controller/inviteStorage'
 import { SafeTrip } from '../entity/Trip'
-import { MapPin, Users, ArrowRight, Copy, Check, Loader, KeyRound } from 'lucide-react'
+import { MapPin, Users, ArrowRight, Check, Loader, KeyRound } from 'lucide-react'
 
 const FALLBACK_TRIP_IMAGE =
     'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=900&q=80'
@@ -17,7 +17,7 @@ const FALLBACK_TRIP_IMAGE =
 type Screen =
     | 'landing'         // initial — two big buttons
     | 'host'            // enter username to create account
-    | 'host-confirm'    // show generated passphrase
+    | 'host-confirm'    // account created
     | 'login'           // returning user sign in
     | 'join'            // enter room code + PIN
     | 'trips'           // logged in — trip list
@@ -32,14 +32,13 @@ export default function Home() {
 
     // host flow
     const [username,    setUsername]    = useState('')
-    const [generatedPass, setGeneratedPass] = useState('')
-    const [copied,      setCopied]      = useState(false)
+    const [password,    setPassword]    = useState('')
     const [hostLoading, setHostLoading] = useState(false)
     const [hostError,   setHostError]   = useState<string | null>(null)
 
     // login flow
     const [loginUsername, setLoginUsername] = useState('')
-    const [loginPassphrase, setLoginPassphrase] = useState('')
+    const [loginPassword, setLoginPassword] = useState('')
     const [loginLoading, setLoginLoading] = useState(false)
     const [loginError, setLoginError] = useState<string | null>(null)
 
@@ -85,44 +84,29 @@ export default function Home() {
 
     // ─── Host flow ────────────────────────────────────────────────────────────
 
-    // generate a short passphrase: one friendly word plus four digits
-    function generatePassphrase(): string {
-        const words = [
-            'apple', 'river', 'cloud', 'stone', 'ocean', 'maple', 'solar',
-            'amber', 'swift', 'lunar', 'cedar', 'bloom', 'coral', 'haven',
-        ]
-        const word = words[Math.floor(Math.random() * words.length)]
-        const digits = Math.floor(1000 + Math.random() * 9000)
-        return `${word}${digits}`
-    }
-
     async function handleHost() {
         if (!username.trim()) {
-            setHostError('Please enter a username')
+            setHostError('Please enter a name')
+            return
+        }
+
+        if (password.length < 6) {
+            setHostError('Password must be at least 6 characters')
             return
         }
 
         setHostLoading(true)
         setHostError(null)
 
-        const passphrase = generatePassphrase()
-
         try {
             // we call register directly — authService handles uniqueness check
-            await register(username.trim(), passphrase)
-            setGeneratedPass(passphrase)
+            await register(username.trim(), password)
             setScreen('host-confirm')
         } catch (err) {
             setHostError(err instanceof Error ? err.message : 'Failed to create account')
         } finally {
             setHostLoading(false)
         }
-    }
-
-    async function handleCopyPass() {
-        await navigator.clipboard.writeText(generatedPass)
-        setCopied(true)
-        setTimeout(() => setCopied(false), 2000)
     }
 
     // ─── Join flow ────────────────────────────────────────────────────────────
@@ -156,8 +140,8 @@ export default function Home() {
     // ─── Screens ──────────────────────────────────────────────────────────────
 
     async function handleLogin() {
-        if (!loginUsername.trim() || !loginPassphrase.trim()) {
-            setLoginError('Enter your username and passphrase')
+        if (!loginUsername.trim() || !loginPassword.trim()) {
+            setLoginError('Enter your name and password')
             return
         }
 
@@ -165,7 +149,7 @@ export default function Home() {
         setLoginError(null)
 
         try {
-            await login(loginUsername.trim(), loginPassphrase.trim())
+            await login(loginUsername.trim(), loginPassword.trim())
             setScreen('trips')
         } catch (err) {
             setLoginError(err instanceof Error ? err.message : 'Login failed')
@@ -324,7 +308,7 @@ export default function Home() {
                     }}
                 >
                     <KeyRound size={15} />
-                    Sign in with passphrase
+                    Sign in
                 </button>
             </div>
         )
@@ -347,7 +331,12 @@ export default function Home() {
                     }}
                 >
                     <button
-                        onClick={() => { setScreen('landing'); setHostError(null); setUsername('') }}
+                        onClick={() => {
+                            setScreen('landing')
+                            setHostError(null)
+                            setUsername('')
+                            setPassword('')
+                        }}
                         style={{ fontSize: 12, color: 'var(--muted-foreground)', marginBottom: 20 }}
                     >
                         ← Back
@@ -363,11 +352,10 @@ export default function Home() {
                             marginBottom:  6,
                         }}
                     >
-                        Choose a username
+                        Choose a name and password
                     </h2>
                     <p style={{ fontSize: 13, color: 'var(--muted-foreground)', marginBottom: 24, lineHeight: 1.5 }}>
-                        This is how your travel companions will see you.
-                        We'll generate a passphrase for you to save.
+                        This is how your travel companions will see you. Choose a simple visible password to sign in later.
                     </p>
 
                     <input
@@ -375,6 +363,22 @@ export default function Home() {
                         value={username}
                         onChange={(e) => setUsername(e.target.value)}
                         placeholder="e.g. john"
+                        className="w-full rounded-xl px-4 py-3 outline-none transition-all mb-3"
+                        style={{
+                            background: 'var(--input-background)',
+                            border:     '1px solid var(--border)',
+                            color:      'var(--foreground)',
+                            fontSize:   14,
+                        }}
+                        onFocus={(e) => e.currentTarget.style.borderColor = 'var(--ring)'}
+                        onBlur={(e) => e.currentTarget.style.borderColor = 'var(--border)'}
+                        onKeyDown={(e) => { if (e.key === 'Enter') handleHost() }}
+                    />
+
+                    <input
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="Password"
                         className="w-full rounded-xl px-4 py-3 outline-none transition-all mb-3"
                         style={{
                             background: 'var(--input-background)',
@@ -395,7 +399,7 @@ export default function Home() {
 
                     <button
                         onClick={handleHost}
-                        disabled={hostLoading || !username.trim()}
+                        disabled={hostLoading || !username.trim() || !password}
                         className="w-full rounded-xl py-3 transition-all"
                         style={{
                             background: 'var(--accent)',
@@ -403,7 +407,7 @@ export default function Home() {
                             fontSize:   14,
                             fontWeight: 700,
                             fontFamily: "'Inter', system-ui, sans-serif",
-                            opacity:    hostLoading || !username.trim() ? 0.6 : 1,
+                            opacity:    hostLoading || !username.trim() || !password ? 0.6 : 1,
                         }}
                     >
                         {hostLoading ? 'Creating account…' : 'Continue'}
@@ -430,7 +434,7 @@ export default function Home() {
                     }}
                 >
                     <button
-                        onClick={() => { setScreen('landing'); setLoginError(null); setLoginUsername(''); setLoginPassphrase('') }}
+                        onClick={() => { setScreen('landing'); setLoginError(null); setLoginUsername(''); setLoginPassword('') }}
                         style={{ fontSize: 12, color: 'var(--muted-foreground)', marginBottom: 20 }}
                     >
                         Back
@@ -449,7 +453,7 @@ export default function Home() {
                         Sign in
                     </h2>
                     <p style={{ fontSize: 13, color: 'var(--muted-foreground)', marginBottom: 24, lineHeight: 1.5 }}>
-                        Use the passphrase you saved when creating your account.
+                        Use the name and password you created for your account.
                     </p>
 
                     <div className="flex flex-col" style={{ gap: 12 }}>
@@ -457,7 +461,7 @@ export default function Home() {
                             autoFocus
                             value={loginUsername}
                             onChange={(e) => setLoginUsername(e.target.value)}
-                            placeholder="Username"
+                            placeholder="Name"
                             className="w-full rounded-xl px-4 py-3 outline-none transition-all"
                             style={{
                                 background: 'var(--input-background)',
@@ -470,9 +474,10 @@ export default function Home() {
                         />
 
                         <input
-                            value={loginPassphrase}
-                            onChange={(e) => setLoginPassphrase(e.target.value)}
-                            placeholder="Passphrase"
+                            type="password"
+                            value={loginPassword}
+                            onChange={(e) => setLoginPassword(e.target.value)}
+                            placeholder="Password"
                             className="w-full rounded-xl px-4 py-3 outline-none transition-all"
                             style={{
                                 background: 'var(--input-background)',
@@ -492,7 +497,7 @@ export default function Home() {
 
                         <button
                             onClick={handleLogin}
-                            disabled={loginLoading || !loginUsername.trim() || !loginPassphrase.trim()}
+                            disabled={loginLoading || !loginUsername.trim() || !loginPassword.trim()}
                             className="w-full rounded-xl py-3 transition-all"
                             style={{
                                 background: 'var(--accent)',
@@ -500,7 +505,7 @@ export default function Home() {
                                 fontSize: 14,
                                 fontWeight: 700,
                                 fontFamily: "'Inter', system-ui, sans-serif",
-                                opacity: loginLoading || !loginUsername.trim() || !loginPassphrase.trim() ? 0.6 : 1,
+                                opacity: loginLoading || !loginUsername.trim() || !loginPassword.trim() ? 0.6 : 1,
                             }}
                         >
                             {loginLoading ? 'Signing in...' : 'Sign in'}
@@ -511,7 +516,7 @@ export default function Home() {
         )
     }
 
-    // Host confirm — show generated passphrase
+    // Host confirm
     if (screen === 'host-confirm') {
         return (
             <div
@@ -561,50 +566,7 @@ export default function Home() {
                             lineHeight: 1.5,
                         }}
                     >
-                        Save your passphrase — you'll need it to sign back in on other devices.
-                    </p>
-
-                    {/* Passphrase display */}
-                    <div
-                        className="rounded-xl p-4 mb-3 flex items-center justify-between gap-3"
-                        style={{
-                            background: 'var(--muted)',
-                            border:     '1px solid var(--border)',
-                        }}
-                    >
-                        <span
-                            style={{
-                                fontFamily:    "'JetBrains Mono', monospace",
-                                fontWeight:    600,
-                                fontSize:      15,
-                                color:         'var(--foreground)',
-                                letterSpacing: '0.04em',
-                            }}
-                        >
-                            {generatedPass}
-                        </span>
-                        <button
-                            onClick={handleCopyPass}
-                            className="rounded-lg p-2 transition-colors shrink-0"
-                            style={{
-                                background: copied ? '#22C55E18' : 'var(--card)',
-                                color:      copied ? '#22C55E' : 'var(--muted-foreground)',
-                                border:     '1px solid var(--border)',
-                            }}
-                        >
-                            {copied ? <Check size={14} /> : <Copy size={14} />}
-                        </button>
-                    </div>
-
-                    <p
-                        style={{
-                            fontSize:     11,
-                            color:        'var(--muted-foreground)',
-                            marginBottom: 24,
-                            textAlign:    'center',
-                        }}
-                    >
-                        This passphrase will not be shown again
+                        Your account is ready. Use your name and password to sign in on other devices.
                     </p>
 
                     <button
@@ -618,13 +580,12 @@ export default function Home() {
                             fontFamily: "'Inter', system-ui, sans-serif",
                         }}
                     >
-                        Create my first trip →
+                        Create my first trip
                     </button>
                 </div>
             </div>
         )
     }
-
     // Join — enter room code + PIN
     if (screen === 'join') {
         return (
