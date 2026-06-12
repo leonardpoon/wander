@@ -7,10 +7,12 @@ import { useRef } from 'react'
 import { useDrop } from 'react-dnd'
 import { Plus, CloudSun } from 'lucide-react'
 import { CardItem } from './CardItem'
-import { Card } from '../entity/Cards'
+import { Card, CardGroup } from '../entity/Cards'
 import { WeatherForecast } from '../controller/weatherService'
 import { getWeatherIcon } from './WeatherIcon'
 import { CardCategoryOption } from '../entity/CardCategories'
+import { CardGroupItem } from './CardGroupItem'
+import { CardDropZone } from './CardDropZone'
 
 const DND_CARD = 'CARD'
 
@@ -19,12 +21,21 @@ interface KanbanColumnProps {
     date:        string
     label:       string
     cards:       Card[]
+    groups:      CardGroup[]
     categoryOptions: CardCategoryOption[]
     weather:     WeatherForecast | null
     accentColor: string
     onAddCard:   () => void
     onEditCard:  (card: Card) => void
-    onMoveCard:  (cardId: string, targetColumnId: string, targetPosition: number) => Promise<void>
+    onMoveCard:  (
+        cardId: string,
+        targetColumnId: string,
+        targetPosition: number,
+        targetGroupId?: string | null
+    ) => Promise<void>
+    onCreateGroup: (sourceCardId: string, targetCardId: string) => Promise<void>
+    onAddCardToGroup: (cardId: string, groupId: string) => Promise<void>
+    onRemoveCardFromGroup: (cardId: string) => Promise<void>
 }
 
 export function KanbanColumn({
@@ -32,21 +43,29 @@ export function KanbanColumn({
     date,
     label,
     cards,
+    groups,
     categoryOptions,
     weather,
     accentColor,
     onAddCard,
     onEditCard,
     onMoveCard,
+    onCreateGroup,
+    onAddCardToGroup,
+    onRemoveCardFromGroup,
 }: KanbanColumnProps) {
     const columnRef = useRef<HTMLDivElement>(null)
 
     // US-12: drop target — accepts dragged cards
     const [{ isOver }, drop] = useDrop({
         accept: DND_CARD,
-        drop: (item: { cardId: string }) => {
+        drop: (item: { cardId: string }, monitor) => {
+            if (monitor.didDrop()) return
             // drop at the end of the column
-            onMoveCard(item.cardId, columnId, cards.length)
+            const lastPosition = cards.length > 0
+                ? Math.max(...cards.map((card) => card.position))
+                : -1
+            onMoveCard(item.cardId, columnId, lastPosition + 1, null)
         },
         collect: (monitor) => ({
             isOver: monitor.isOver(),
@@ -54,6 +73,19 @@ export function KanbanColumn({
     })
 
     drop(columnRef)
+    const looseCards = cards.filter((card) => !card.group_id)
+    const cardsByGroup = new Map<string, Card[]>()
+
+    for (const card of cards) {
+        if (!card.group_id) continue
+        const groupCards = cardsByGroup.get(card.group_id) ?? []
+        groupCards.push(card)
+        cardsByGroup.set(card.group_id, groupCards)
+    }
+
+    const visibleGroups = groups
+        .filter((group) => group.column_id === columnId && (cardsByGroup.get(group.id)?.length ?? 0) > 0)
+        .sort((a, b) => a.position - b.position)
 
     // format date for column header: "Mon 12 Jun"
     function formatDate(dateStr: string): string {
@@ -163,15 +195,43 @@ export function KanbanColumn({
                     e.currentTarget.style.background = 'transparent'
                 }}
             >
-                {cards.map((card, index) => (
-                    <CardItem
-                        key={card.id}
-                        card={card}
-                        index={index}
+                <CardDropZone
+                    columnId={columnId}
+                    position={looseCards[0]?.position ?? 0}
+                    groupId={null}
+                    onMoveCard={onMoveCard}
+                />
+                {looseCards.map((card, index) => (
+                    <div key={card.id} className="flex flex-col" style={{ gap: 8 }}>
+                        <CardItem
+                            card={card}
+                            index={index}
+                            columnId={columnId}
+                            onEdit={() => onEditCard(card)}
+                            categoryOptions={categoryOptions}
+                            onMove={onMoveCard}
+                            onGroupWith={onCreateGroup}
+                        />
+                        <CardDropZone
+                            columnId={columnId}
+                            position={card.position + 1}
+                            groupId={null}
+                            onMoveCard={onMoveCard}
+                        />
+                    </div>
+                ))}
+
+                {visibleGroups.map((group) => (
+                    <CardGroupItem
+                        key={group.id}
+                        group={group}
+                        cards={(cardsByGroup.get(group.id) ?? []).sort((a, b) => a.position - b.position)}
                         columnId={columnId}
-                        onEdit={() => onEditCard(card)}
                         categoryOptions={categoryOptions}
-                        onMove={onMoveCard}
+                        onEditCard={onEditCard}
+                        onMoveCard={onMoveCard}
+                        onAddCardToGroup={onAddCardToGroup}
+                        onRemoveCardFromGroup={onRemoveCardFromGroup}
                     />
                 ))}
 

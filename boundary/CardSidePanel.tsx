@@ -430,9 +430,10 @@ export function CardSidePanel({
                             onBlur={(e) => e.currentTarget.style.borderColor = 'var(--border)'}
                         />
                         <input
-                            value={effectiveBudgetCurrency}
+                            value={budgetCurrency}
                             onChange={(e) => setBudgetCurrency(e.target.value.slice(0, 3).toUpperCase())}
                             list="budget-currency-options"
+                            placeholder={selectedColumnCurrency}
                             className="w-full rounded-xl px-3 py-2.5 outline-none transition-all"
                             style={{
                                 background: 'var(--input-background)',

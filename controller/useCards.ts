@@ -13,10 +13,12 @@ import { useSessionStore } from './sessionStore'
 import {
     Card,
     CardCategory,
+    CardGroup,
     CreateTodoCardPayload,
 } from '../entity/Cards'
 
 const DEFAULT_TODO_COLUMNS = ['To Do', 'In Progress', 'Awaiting', 'Done']
+const GROUP_COLORS = ['#7C3AED', '#0891B2', '#DB2777', '#65A30D', '#EA580C', '#4F46E5']
 
 const realtimeChannels = new Map<
     string,
@@ -27,6 +29,7 @@ export function useCards(tripId: string | null) {
     const { user } = useSessionStore()
     const {
         cards,
+        cardGroups,
         activeCard,
         voteTallies,
         packingItems,
@@ -36,9 +39,13 @@ export function useCards(tripId: string | null) {
         error,
         sidePanelColumnId,
         setCards,
+        setCardGroups,
         addCard,
         updateCard,
         removeCard,
+        addCardGroup,
+        updateCardGroup,
+        removeCardGroup,
         moveCardOptimistic,
         setActiveCard,
         setVoteTallies,
@@ -74,9 +81,10 @@ export function useCards(tripId: string | null) {
 
             try {
                 // load cards, packing items, and todo board in parallel
-                const [fetchedCards, fetchedPacking, fetchedTodoCols, fetchedTodoCards] =
+                const [fetchedCards, fetchedGroups, fetchedPacking, fetchedTodoCols, fetchedTodoCards] =
                     await Promise.all([
                         cardService.getCardsByTrip(tripId!),
+                        cardService.getGroupsByTrip(tripId!),
                         packingRepository.findByTrip(tripId!),
                         todoRepository.findColumnsByTrip(tripId!),
                         todoRepository.findCardsByTrip(tripId!),
@@ -85,6 +93,7 @@ export function useCards(tripId: string | null) {
                 if (cancelled) return
 
                 setCards(fetchedCards)
+                setCardGroups(fetchedGroups)
                 setPackingItems(fetchedPacking)
                 setTodoColumns(fetchedTodoCols)
                 setTodoCards(fetchedTodoCards)
@@ -150,6 +159,26 @@ export function useCards(tripId: string | null) {
                         updateCard(payload.new as Card)
                     } else if (payload.eventType === 'DELETE') {
                         removeCard(payload.old.id)
+                    }
+                }
+            )
+
+            // card groups table
+            .on(
+                'postgres_changes',
+                {
+                    event: '*',
+                    schema: 'public',
+                    table: 'card_groups',
+                    filter: `trip_id=eq.${tripId}`,
+                },
+                (payload) => {
+                    if (payload.eventType === 'INSERT') {
+                        addCardGroup(payload.new as CardGroup)
+                    } else if (payload.eventType === 'UPDATE') {
+                        updateCardGroup(payload.new as CardGroup)
+                    } else if (payload.eventType === 'DELETE') {
+                        removeCardGroup(payload.old.id)
                     }
                 }
             )
@@ -236,6 +265,7 @@ export function useCards(tripId: string | null) {
     // US-11: create a new card in a column
     const createCard = useCallback(async (payload: {
         column_id: string
+        group_id?: string | null
         category: CardCategory
         sub_category?: string | null
         title: string
@@ -243,6 +273,7 @@ export function useCards(tripId: string | null) {
         fixed_time?: boolean
         time_value?: string | null
         budget_amount?: number | null
+        budget_currency?: string | null
         notes?: string | null
     }) => {
         if (!tripId || !user) return
@@ -280,14 +311,15 @@ export function useCards(tripId: string | null) {
     const moveCard = useCallback(async (
         cardId: string,
         targetColumnId: string,
-        targetPosition: number
+        targetPosition: number,
+        targetGroupId?: string | null
     ) => {
         try {
             setError(null)
             // optimistic update first — UI moves instantly
-            moveCardOptimistic(cardId, targetColumnId, targetPosition)
+            moveCardOptimistic(cardId, targetColumnId, targetPosition, targetGroupId)
             // then persist to DB — Realtime will confirm the final state
-            await cardService.moveCard(cardId, targetColumnId, targetPosition)
+            await cardService.moveCard(cardId, targetColumnId, targetPosition, targetGroupId)
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Failed to move card')
             // re-fetch to correct any optimistic drift
@@ -398,6 +430,116 @@ export function useCards(tripId: string | null) {
         ))
         setTodoColumns(created)
     }, [tripId])
+
+    function getNextGroupColor(): string {
+        return GROUP_COLORS[cardGroups.length % GROUP_COLORS.length]
+    }
+
+    function getGroupTitle(cardsForGroup: Card[]): string {
+        const location = cardsForGroup.find((card) => card.location_name)?.location_name
+        if (location) return location
+
+        const shortestTitle = cardsForGroup
+            .map((card) => card.title)
+            .sort((a, b) => a.length - b.length)[0]
+
+        return shortestTitle ? `${shortestTitle} group` : 'Activity group'
+    }
+
+    const addCardToGroup = useCallback(async (cardId: string, groupId: string) => {
+        const card = cards.find((candidate) => candidate.id === cardId)
+        const group = cardGroups.find((candidate) => candidate.id === groupId)
+        if (!card || !group) return
+
+        if (card.column_id !== group.column_id) {
+            setError('Cards can only be grouped within the same day.')
+            return
+        }
+
+        try {
+            setError(null)
+            const updated = await cardService.updateCard(cardId, { group_id: groupId })
+            updateCard(updated)
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to add card to group')
+            throw err
+        }
+    }, [cards, cardGroups])
+
+    const createGroupFromCards = useCallback(async (sourceCardId: string, targetCardId: string) => {
+        if (!tripId || sourceCardId === targetCardId) return
+
+        const sourceCard = cards.find((card) => card.id === sourceCardId)
+        const targetCard = cards.find((card) => card.id === targetCardId)
+        if (!sourceCard || !targetCard) return
+
+        if (sourceCard.column_id !== targetCard.column_id) {
+            setError('Groups can only be created within the same day.')
+            return
+        }
+
+        if (targetCard.group_id) {
+            await addCardToGroup(sourceCardId, targetCard.group_id)
+            return
+        }
+
+        if (sourceCard.group_id) {
+            await addCardToGroup(targetCardId, sourceCard.group_id)
+            return
+        }
+
+        try {
+            setError(null)
+            const group = await cardService.createGroup({
+                trip_id: tripId,
+                column_id: targetCard.column_id,
+                title: getGroupTitle([targetCard, sourceCard]),
+                color: getNextGroupColor(),
+                position: Math.min(targetCard.position, sourceCard.position),
+            })
+
+            addCardGroup(group)
+
+            const targetUpdate = await cardService.updateCard(targetCard.id, { group_id: group.id })
+            const sourceUpdate = await cardService.updateCard(sourceCard.id, {
+                group_id: group.id,
+                column_id: targetCard.column_id,
+            })
+
+            updateCard(targetUpdate)
+            updateCard(sourceUpdate)
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to create group')
+            throw err
+        }
+    }, [tripId, cards, cardGroups, addCardToGroup])
+
+    const removeCardFromGroup = useCallback(async (cardId: string) => {
+        const card = cards.find((candidate) => candidate.id === cardId)
+        if (!card?.group_id) return
+
+        try {
+            setError(null)
+            const updated = await cardService.updateCard(cardId, { group_id: null })
+            updateCard(updated)
+
+            const remainingCards = cards.filter(
+                (candidate) => candidate.group_id === card.group_id && candidate.id !== cardId
+            )
+
+            if (remainingCards.length <= 1) {
+                for (const remaining of remainingCards) {
+                    const ungrouped = await cardService.updateCard(remaining.id, { group_id: null })
+                    updateCard(ungrouped)
+                }
+                await cardService.deleteGroup(card.group_id)
+                removeCardGroup(card.group_id)
+            }
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to remove card from group')
+            throw err
+        }
+    }, [cards])
 
     // US-38: add a custom todo column
     const addTodoCol = useCallback(async (label: string) => {
@@ -559,6 +701,7 @@ export function useCards(tripId: string | null) {
     return {
         // state
         cards,
+        cardGroups,
         activeCard,
         packingItems,
         todoColumns,
@@ -571,6 +714,9 @@ export function useCards(tripId: string | null) {
         createCard,
         editCard,
         moveCard,
+        createGroupFromCards,
+        addCardToGroup,
+        removeCardFromGroup,
         deleteCard,
         voteOnCard,
         setActiveCard,

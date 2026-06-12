@@ -8,7 +8,7 @@
 // US-26: home currency in brackets
 
 import { useRef } from 'react'
-import { useDrag } from 'react-dnd'
+import { useDrag, useDrop } from 'react-dnd'
 import {
     MapPin,
     Clock,
@@ -19,6 +19,7 @@ import {
     ShoppingBag,
     UtensilsCrossed,
     Tag,
+    X,
 } from 'lucide-react'
 import { Card } from '../entity/Cards'
 import { CardCategoryOption, getCategoryColor, getCategoryLabel } from '../entity/CardCategories'
@@ -43,22 +44,66 @@ interface CardItemProps {
     columnId: string
     categoryOptions: CardCategoryOption[]
     onEdit:   () => void
-    onMove:   (cardId: string, targetColumnId: string, targetPosition: number) => Promise<void>
+    onMove:   (
+        cardId: string,
+        targetColumnId: string,
+        targetPosition: number,
+        targetGroupId?: string | null
+    ) => Promise<void>
+    onGroupWith?: (sourceCardId: string, targetCardId: string) => Promise<void>
+    onUngroup?: (cardId: string) => Promise<void>
+    enableGrouping?: boolean
 }
 
-export function CardItem({ card, index, columnId, categoryOptions, onEdit, onMove }: CardItemProps) {
+export function CardItem({
+    card,
+    index,
+    columnId,
+    categoryOptions,
+    onEdit,
+    onMove,
+    onGroupWith,
+    onUngroup,
+    enableGrouping = true,
+}: CardItemProps) {
     const cardRef = useRef<HTMLDivElement>(null)
 
     // US-12: drag source
     const [{ isDragging }, drag] = useDrag({
         type: DND_CARD,
-        item: { cardId: card.id, sourceColumnId: columnId, sourceIndex: index },
+        item: {
+            cardId: card.id,
+            sourceColumnId: columnId,
+            sourceIndex: index,
+            sourcePosition: card.position,
+            sourceGroupId: card.group_id,
+        },
         collect: (monitor) => ({
             isDragging: monitor.isDragging(),
         }),
     })
 
-    drag(cardRef)
+    const [{ isGroupTarget }, drop] = useDrop<
+        { cardId: string; sourceColumnId: string },
+        void,
+        { isGroupTarget: boolean }
+    >({
+        accept: DND_CARD,
+        canDrop: (item: { cardId: string; sourceColumnId: string }) =>
+            enableGrouping
+            && item.cardId !== card.id
+            && item.sourceColumnId === columnId
+            && Boolean(onGroupWith),
+        drop: (item: { cardId: string }) => {
+            if (!onGroupWith || item.cardId === card.id) return
+            onGroupWith(item.cardId, card.id)
+        },
+        collect: (monitor) => ({
+            isGroupTarget: monitor.canDrop() && monitor.isOver({ shallow: true }),
+        }),
+    })
+
+    drag(drop(cardRef))
 
     const categoryColor = getCategoryColor(card.category, categoryOptions)
     const categoryLabel = getCategoryLabel(card.category, categoryOptions)
@@ -79,7 +124,10 @@ export function CardItem({ card, index, columnId, categoryOptions, onEdit, onMov
                 opacity:      isDragging ? 0.4 : 1,
                 boxShadow:    isDragging
                     ? 'none'
+                    : isGroupTarget
+                        ? '0 0 0 3px rgba(124,58,237,0.24)'
                     : '0 1px 3px rgba(0,0,0,0.06)',
+                outline:      isGroupTarget ? '2px solid #7C3AED' : 'none',
             }}
             onMouseEnter={(e) => {
                 if (!isDragging) {
@@ -106,6 +154,23 @@ export function CardItem({ card, index, columnId, categoryOptions, onEdit, onMov
             >
                 <Pencil size={11} />
             </button>
+
+            {onUngroup && card.group_id && (
+                <button
+                    onClick={(e) => {
+                        e.stopPropagation()
+                        onUngroup(card.id)
+                    }}
+                    title="Remove from group"
+                    className="absolute top-2 right-8 rounded-lg p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                    style={{
+                        background: 'var(--muted)',
+                        color:      'var(--muted-foreground)',
+                    }}
+                >
+                    <X size={11} />
+                </button>
+            )}
 
             <div className="p-3">
                 {/* US-14: category chip + sub-category */}

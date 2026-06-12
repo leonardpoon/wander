@@ -43,11 +43,15 @@ export function KanbanBoard({
     const { user } = useSessionStore()
     const {
         activeCard,
+        cardGroups,
         sidePanelColumnId,
         getCardsByColumn,
         createCard,
         editCard,
         moveCard,
+        createGroupFromCards,
+        addCardToGroup,
+        removeCardFromGroup,
         deleteCard,
         setActiveCard,
         setSidePanelColumnId,
@@ -120,12 +124,16 @@ export function KanbanBoard({
                             date={col.date}
                             label={col.label}
                             cards={getFilteredCards(col.id)}
+                            groups={cardGroups.filter((group) => group.column_id === col.id)}
                             categoryOptions={categoryOptions}
                             weather={getWeatherForColumn(col.destination, col.date)}
                             accentColor={accentColor}
                             onAddCard={() => handleAddCard(col.id)}
                             onEditCard={handleEditCard}
                             onMoveCard={moveCard}
+                            onCreateGroup={createGroupFromCards}
+                            onAddCardToGroup={addCardToGroup}
+                            onRemoveCardFromGroup={removeCardFromGroup}
                         />
                     ))}
 

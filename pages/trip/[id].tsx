@@ -66,7 +66,7 @@ export default function TripPage() {
         () => Object.fromEntries(BUILT_IN_CATEGORY_OPTIONS.map((cat) => [cat.id, true]))
     )
 
-    const { cards } = useCards(typeof id === 'string' ? id : null)
+    const { cards, cardGroups } = useCards(typeof id === 'string' ? id : null)
 
     const categoryOptions = useMemo(() => {
         const options = [...BUILT_IN_CATEGORY_OPTIONS, ...customCategories]
@@ -310,6 +310,7 @@ export default function TripPage() {
                 {activeView === 'map' && (
                     <MapView
                         tripId={trip.id}
+                        columns={columns}
                         darkMode={darkMode}
                     />
                 )}
@@ -348,6 +349,7 @@ export default function TripPage() {
                 <ExportModal
                     tripName={trip.name}
                     cards={cards}
+                    groups={cardGroups}
                     columns={columns}
                     onClose={() => setShowExport(false)}
                 />

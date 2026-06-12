@@ -19,6 +19,7 @@ export interface Card {
     id: string
     column_id: string
     trip_id: string
+    group_id: string | null
     category: CardCategory
     sub_category: string | null
     title: string
@@ -41,6 +42,7 @@ export interface Card {
 export interface CreateCardPayload {
     column_id: string
     trip_id: string
+    group_id?: string | null
     category: CardCategory
     sub_category?: string | null
     title: string
@@ -60,6 +62,7 @@ export interface CreateCardPayload {
 // payload for updating card
 export interface UpdateCardPayload {
     column_id?: string
+    group_id?: string | null
     category?: CardCategory
     sub_category?: string | null
     title?: string
@@ -71,6 +74,32 @@ export interface UpdateCardPayload {
     budget_amount?: number | null
     budget_currency?: string | null
     notes?: string | null
+    position?: number
+}
+
+export interface CardGroup {
+    id: string
+    trip_id: string
+    column_id: string
+    title: string
+    color: string
+    position: number
+    created_at: string
+    updated_at: string
+}
+
+export interface CreateCardGroupPayload {
+    trip_id: string
+    column_id: string
+    title: string
+    color: string
+    position: number
+}
+
+export interface UpdateCardGroupPayload {
+    column_id?: string
+    title?: string
+    color?: string
     position?: number
 }
 

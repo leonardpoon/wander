@@ -5,6 +5,7 @@
 import { create } from 'zustand'
 import {
     Card,
+    CardGroup,
     CardVoteTally,
     PackingItem,
     TodoColumn,
@@ -14,6 +15,7 @@ import {
 interface CardState {
     // ─── Kanban Cards ──────────────────────────────────────────────────────
     cards: Card[]                       // all cards for the active trip
+    cardGroups: CardGroup[]
     activeCard: Card | null             // card currently open in side panel
     voteTallies: CardVoteTally[]        // vote counts keyed by card_id
 
@@ -32,13 +34,22 @@ interface CardState {
 
     // ─── Card Actions ──────────────────────────────────────────────────────
     setCards: (cards: Card[]) => void
+    setCardGroups: (groups: CardGroup[]) => void
     addCard: (card: Card) => void
     updateCard: (card: Card) => void
     removeCard: (cardId: string) => void
+    addCardGroup: (group: CardGroup) => void
+    updateCardGroup: (group: CardGroup) => void
+    removeCardGroup: (groupId: string) => void
 
     // optimistic move — updates local state immediately before DB confirms
     // keeps the UI snappy during drag and drop
-    moveCardOptimistic: (cardId: string, targetColumnId: string, targetPosition: number) => void
+    moveCardOptimistic: (
+        cardId: string,
+        targetColumnId: string,
+        targetPosition: number,
+        targetGroupId?: string | null
+    ) => void
 
     setActiveCard: (card: Card | null) => void
     setVoteTallies: (tallies: CardVoteTally[]) => void
@@ -72,6 +83,7 @@ interface CardState {
 
 const initialState = {
     cards: [],
+    cardGroups: [],
     activeCard: null,
     voteTallies: [],
     packingItems: [],
@@ -88,6 +100,7 @@ export const useCardStore = create<CardState>((set) => ({
     // ─── Card Actions ───────────────────────────────────────────────────────
 
     setCards: (cards) => set({ cards }),
+    setCardGroups: (cardGroups) => set({ cardGroups }),
 
     addCard: (card) =>
         set((state) => ({
@@ -108,14 +121,39 @@ export const useCardStore = create<CardState>((set) => ({
             activeCard: state.activeCard?.id === cardId ? null : state.activeCard,
         })),
 
+    addCardGroup: (group) =>
+        set((state) => ({
+            cardGroups: state.cardGroups.some((g) => g.id === group.id)
+                ? state.cardGroups.map((g) => (g.id === group.id ? group : g))
+                : [...state.cardGroups, group],
+        })),
+
+    updateCardGroup: (group) =>
+        set((state) => ({
+            cardGroups: state.cardGroups.map((g) => (g.id === group.id ? group : g)),
+        })),
+
+    removeCardGroup: (groupId) =>
+        set((state) => ({
+            cardGroups: state.cardGroups.filter((g) => g.id !== groupId),
+            cards: state.cards.map((card) =>
+                card.group_id === groupId ? { ...card, group_id: null } : card
+            ),
+        })),
+
     // optimistic move — mutate local state immediately so the drag feels instant
     // the actual DB write happens in cardService.moveCard in parallel
     // if the DB write fails, useCards hook will re-fetch and correct the state
-    moveCardOptimistic: (cardId, targetColumnId, targetPosition) =>
+    moveCardOptimistic: (cardId, targetColumnId, targetPosition, targetGroupId) =>
         set((state) => {
             const cards = state.cards.map((c) => {
                 if (c.id === cardId) {
-                    return { ...c, column_id: targetColumnId, position: targetPosition }
+                    return {
+                        ...c,
+                        column_id: targetColumnId,
+                        position: targetPosition,
+                        group_id: targetGroupId !== undefined ? targetGroupId : c.group_id,
+                    }
                 }
                 return c
             })

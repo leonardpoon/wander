@@ -3,19 +3,21 @@
 
 import { useState } from 'react'
 import { X, FileText, Download, Table } from 'lucide-react'
-import { Card } from '../entity/Cards'
+import { Card, CardGroup } from '../entity/Cards'
 import { Column } from '../entity/Column'
 
 interface ExportModalProps {
     tripName: string
     cards:    Card[]
+    groups:   CardGroup[]
     columns:  Column[]
     onClose:  () => void
 }
 
-export function ExportModal({ tripName, cards, columns, onClose }: ExportModalProps) {
+export function ExportModal({ tripName, cards, groups, columns, onClose }: ExportModalProps) {
     const [exporting, setExporting] = useState<'pdf' | 'csv' | null>(null)
     const columnsById = new Map(columns.map((column) => [column.id, column]))
+    const groupsById = new Map(groups.map((group) => [group.id, group]))
 
     function getCardDate(card: Card): string {
         return columnsById.get(card.column_id)?.date ?? ''
@@ -25,9 +27,10 @@ export function ExportModal({ tripName, cards, columns, onClose }: ExportModalPr
     function exportCSV() {
         setExporting('csv')
 
-        const headers = ['Title', 'Category', 'Sub-category', 'Date', 'Time', 'Location', 'Budget', 'Notes']
+        const headers = ['Title', 'Group', 'Category', 'Sub-category', 'Date', 'Time', 'Location', 'Budget', 'Notes']
         const rows = cards.map((c) => [
             `"${c.title}"`,
+            c.group_id ? `"${groupsById.get(c.group_id)?.title ?? 'Activity group'}"` : '',
             c.category,
             c.sub_category ?? '',
             getCardDate(c),
@@ -49,19 +52,100 @@ export function ExportModal({ tripName, cards, columns, onClose }: ExportModalPr
         setExporting(null)
     }
 
-    function escapeHtml(value: string): string {
-        return value
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;')
-            .replace(/'/g, '&#039;')
+    function downloadBlob(blob: Blob, filename: string) {
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = filename
+        a.click()
+        URL.revokeObjectURL(url)
     }
 
-    function exportPDF() {
-        setExporting('pdf')
+    function normalizePdfText(value: string): string {
+        return value
+            .replace(/[^\x09\x0A\x0D\x20-\x7E]/g, '-')
+            .replace(/\\/g, '\\\\')
+            .replace(/\(/g, '\\(')
+            .replace(/\)/g, '\\)')
+    }
 
-        const printableCards = cards
+    function wrapText(value: string, maxChars: number): string[] {
+        const words = value.split(/\s+/).filter(Boolean)
+        const lines: string[] = []
+        let current = ''
+
+        for (const word of words) {
+            const next = current ? `${current} ${word}` : word
+            if (next.length > maxChars && current) {
+                lines.push(current)
+                current = word
+            } else {
+                current = next
+            }
+        }
+
+        if (current) lines.push(current)
+        return lines.length ? lines : ['']
+    }
+
+    function buildPdf(lines: string[]): Blob {
+        const pageWidth = 595
+        const pageHeight = 842
+        const marginX = 48
+        const startY = 790
+        const lineHeight = 16
+        const maxLinesPerPage = 46
+        const pages: string[][] = []
+
+        for (let i = 0; i < lines.length; i += maxLinesPerPage) {
+            pages.push(lines.slice(i, i + maxLinesPerPage))
+        }
+
+        if (pages.length === 0) pages.push(['No cards yet.'])
+
+        const objects: string[] = []
+        objects.push('<< /Type /Catalog /Pages 2 0 R >>')
+
+        const pageObjectIds = pages.map((_, index) => 3 + index * 2)
+        objects.push(`<< /Type /Pages /Kids [${pageObjectIds.map((id) => `${id} 0 R`).join(' ')}] /Count ${pages.length} >>`)
+
+        pages.forEach((pageLines, index) => {
+            const pageObjectId = 3 + index * 2
+            const contentObjectId = pageObjectId + 1
+            const text = pageLines
+                .map((line, lineIndex) => {
+                    const y = startY - lineIndex * lineHeight
+                    return `BT /F1 10 Tf ${marginX} ${y} Td (${normalizePdfText(line)}) Tj ET`
+                })
+                .join('\n')
+            const content = `<< /Length ${text.length} >>\nstream\n${text}\nendstream`
+
+            objects.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pageWidth} ${pageHeight}] /Resources << /Font << /F1 ${3 + pages.length * 2} 0 R >> >> /Contents ${contentObjectId} 0 R >>`)
+            objects.push(content)
+        })
+
+        objects.push('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>')
+
+        let pdf = '%PDF-1.4\n'
+        const offsets = [0]
+        objects.forEach((object, index) => {
+            offsets.push(pdf.length)
+            pdf += `${index + 1} 0 obj\n${object}\nendobj\n`
+        })
+
+        const xrefOffset = pdf.length
+        pdf += `xref\n0 ${objects.length + 1}\n`
+        pdf += '0000000000 65535 f \n'
+        offsets.slice(1).forEach((offset) => {
+            pdf += `${String(offset).padStart(10, '0')} 00000 n \n`
+        })
+        pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`
+
+        return new Blob([pdf], { type: 'application/pdf' })
+    }
+
+    function getPrintableLines(): string[] {
+        const orderedCards = cards
             .slice()
             .sort((a, b) => {
                 const columnA = columnsById.get(a.column_id)
@@ -70,105 +154,69 @@ export function ExportModal({ tripName, cards, columns, onClose }: ExportModalPr
                 const columnPositionB = columnB?.position ?? Number.MAX_SAFE_INTEGER
 
                 if (columnPositionA !== columnPositionB) return columnPositionA - columnPositionB
+                if ((a.group_id ?? '') !== (b.group_id ?? '')) {
+                    const groupA = a.group_id ? groupsById.get(a.group_id)?.position ?? a.position : a.position
+                    const groupB = b.group_id ? groupsById.get(b.group_id)?.position ?? b.position : b.position
+                    if (groupA !== groupB) return groupA - groupB
+                }
                 return a.position - b.position
             })
-            .map((card) => `
-                <article class="card">
-                    <div class="meta">
-                        ${getCardDate(card) ? `<span>${escapeHtml(getCardDate(card))}</span>` : ''}
-                        <span>${escapeHtml(card.category)}</span>
-                        ${card.sub_category ? `<span>${escapeHtml(card.sub_category)}</span>` : ''}
-                        ${card.time_value ? `<span>${escapeHtml(card.time_value.slice(0, 5))}</span>` : ''}
-                    </div>
-                    <h2>${escapeHtml(card.title)}</h2>
-                    ${card.location_name ? `<p class="line">Location: ${escapeHtml(card.location_name)}</p>` : ''}
-                    ${card.budget_amount ? `<p class="line">Budget: ${escapeHtml(String(card.budget_amount))}</p>` : ''}
-                    ${card.notes ? `<p class="notes">${escapeHtml(card.notes)}</p>` : ''}
-                </article>
-            `)
-            .join('')
 
-        const printWindow = window.open('', '_blank', 'noopener,noreferrer')
-        if (!printWindow) {
-            setExporting(null)
-            return
+        const lines = [
+            tripName,
+            `${cards.length} itinerary cards`,
+            '',
+        ]
+        let lastDate = ''
+        let lastGroupId: string | null = null
+
+        for (const card of orderedCards) {
+            const date = getCardDate(card)
+            if (date && date !== lastDate) {
+                lines.push('', date)
+                lastDate = date
+                lastGroupId = null
+            }
+
+            if (card.group_id && card.group_id !== lastGroupId) {
+                const group = groupsById.get(card.group_id)
+                lines.push('', `Group: ${group?.title ?? 'Activity group'}`)
+                lastGroupId = card.group_id
+            } else if (!card.group_id) {
+                lastGroupId = null
+            }
+
+            const meta = [
+                card.time_value?.slice(0, 5),
+                card.category,
+                card.sub_category,
+            ].filter(Boolean).join(' | ')
+            lines.push(...wrapText(`${meta ? `${meta} - ` : ''}${card.title}`, 82))
+
+            if (card.location_name) lines.push(...wrapText(`Location: ${card.location_name}`, 82))
+            if (card.budget_amount) {
+                const currency = card.budget_currency ? `${card.budget_currency} ` : ''
+                lines.push(`Budget: ${currency}${card.budget_amount}`)
+            }
+            if (card.notes) {
+                for (const noteLine of card.notes.split('\n')) {
+                    lines.push(...wrapText(`Notes: ${noteLine}`, 82))
+                }
+            }
+            lines.push('')
         }
 
-        printWindow.document.write(`
-            <!doctype html>
-            <html>
-                <head>
-                    <title>${escapeHtml(tripName)} itinerary</title>
-                    <style>
-                        body {
-                            margin: 0;
-                            padding: 32px;
-                            color: #0f172a;
-                            font-family: Arial, sans-serif;
-                            background: #ffffff;
-                        }
-                        header {
-                            border-bottom: 2px solid #e2e8f0;
-                            margin-bottom: 24px;
-                            padding-bottom: 16px;
-                        }
-                        h1 { margin: 0 0 6px; font-size: 28px; }
-                        .subtitle { color: #64748b; font-size: 13px; }
-                        .card {
-                            break-inside: avoid;
-                            border: 1px solid #e2e8f0;
-                            border-radius: 10px;
-                            margin-bottom: 14px;
-                            padding: 16px;
-                        }
-                        .meta {
-                            display: flex;
-                            gap: 8px;
-                            flex-wrap: wrap;
-                            margin-bottom: 8px;
-                            color: #475569;
-                            font-size: 11px;
-                            font-weight: 700;
-                            text-transform: uppercase;
-                        }
-                        .meta span {
-                            background: #f1f5f9;
-                            border-radius: 999px;
-                            padding: 4px 8px;
-                        }
-                        h2 { margin: 0 0 8px; font-size: 18px; }
-                        .line, .notes {
-                            margin: 4px 0;
-                            font-size: 13px;
-                            line-height: 1.5;
-                        }
-                        .notes {
-                            color: #334155;
-                            white-space: pre-wrap;
-                        }
-                        @media print {
-                            body { padding: 20mm; }
-                        }
-                    </style>
-                </head>
-                <body>
-                    <header>
-                        <h1>${escapeHtml(tripName)}</h1>
-                        <div class="subtitle">${cards.length} itinerary cards</div>
-                    </header>
-                    ${printableCards || '<p>No cards yet.</p>'}
-                    <script>
-                        window.onload = () => {
-                            window.print();
-                            window.setTimeout(() => window.close(), 500);
-                        };
-                    </script>
-                </body>
-            </html>
-        `)
-        printWindow.document.close()
+        return lines
+    }
 
-        setExporting(null)
+    function exportPDF() {
+        setExporting('pdf')
+        try {
+            const pdf = buildPdf(getPrintableLines())
+            downloadBlob(pdf, `${tripName.replace(/\s+/g, '-')}-itinerary.pdf`)
+        } finally {
+            setExporting(null)
+        }
     }
 
     return (
@@ -297,7 +345,7 @@ export function ExportModal({ tripName, cards, columns, onClose }: ExportModalPr
                                 PDF Itinerary
                             </h4>
                             <p style={{ fontSize: 12, color: 'var(--muted-foreground)', marginBottom: 10 }}>
-                                Printable itinerary with your planned cards.
+                                Downloads a real PDF file with cards grouped by day and activity group.
                             </p>
                             <button
                                 onClick={exportPDF}

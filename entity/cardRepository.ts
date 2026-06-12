@@ -2,15 +2,48 @@
 // US-32: votes
 
 import {supabase} from './supabaseClient'
-import {Card, CreateCardPayload, UpdateCardPayload, CardVote, CardVoteTally} from './Cards'
+import {
+    Card,
+    CardGroup,
+    CardVote,
+    CardVoteTally,
+    CreateCardGroupPayload,
+    CreateCardPayload,
+    UpdateCardGroupPayload,
+    UpdateCardPayload,
+} from './Cards'
 
 function isMissingBudgetCurrencyColumn(error: { message?: string } | null): boolean {
     return Boolean(error?.message?.includes('budget_currency'))
 }
 
+function isMissingGroupColumn(error: { message?: string } | null): boolean {
+    return Boolean(error?.message?.includes('group_id'))
+}
+
+function isMissingGroupsTable(error: { message?: string; code?: string } | null): boolean {
+    return Boolean(
+        error?.code === '42P01'
+        || error?.message?.includes('card_groups')
+        || error?.message?.includes('Could not find the table')
+    )
+}
+
 function withoutBudgetCurrency<T extends { budget_currency?: string | null }>(payload: T): Omit<T, 'budget_currency'> {
     const { budget_currency, ...fallbackPayload } = payload
     return fallbackPayload
+}
+
+function withoutGroupId<T extends { group_id?: string | null }>(payload: T): Omit<T, 'group_id'> {
+    const { group_id, ...fallbackPayload } = payload
+    return fallbackPayload
+}
+
+function withoutOptionalCardColumns<T extends {
+    budget_currency?: string | null
+    group_id?: string | null
+}>(payload: T): Omit<Omit<T, 'budget_currency'>, 'group_id'> {
+    return withoutGroupId(withoutBudgetCurrency(payload))
 }
 
 export const cardRepository = {
@@ -23,10 +56,10 @@ export const cardRepository = {
             .select()
             .single()
 
-        if (isMissingBudgetCurrencyColumn(error)) {
+        if (isMissingBudgetCurrencyColumn(error) || isMissingGroupColumn(error)) {
             const retry = await supabase
                 .from('cards')
-                .insert(withoutBudgetCurrency(payload))
+                .insert(withoutOptionalCardColumns(payload))
                 .select()
                 .single()
             data = retry.data
@@ -97,10 +130,10 @@ export const cardRepository = {
             .select()
             .single()
 
-        if (isMissingBudgetCurrencyColumn(error)) {
+        if (isMissingBudgetCurrencyColumn(error) || isMissingGroupColumn(error)) {
             const retry = await supabase
                 .from('cards')
-                .update(withoutBudgetCurrency(payload))
+                .update(withoutOptionalCardColumns(payload))
                 .eq('id', cardId)
                 .select()
                 .single()
@@ -113,10 +146,18 @@ export const cardRepository = {
     },
 
     // US-12: update position and column_id when dragged
-    async moveCard(cardId: string, columnId: string, position: number): Promise<void> {
+    async moveCard(
+        cardId: string,
+        columnId: string,
+        position: number,
+        groupId?: string | null
+    ): Promise<void> {
+        const updatePayload: UpdateCardPayload = {column_id: columnId, position}
+        if (groupId !== undefined) updatePayload.group_id = groupId
+
         const {error} = await supabase
             .from('cards')
-            .update({column_id: columnId, position})
+            .update(updatePayload)
             .eq('id', cardId)
 
         if (error) throw new Error(`moveCard failed: ${error.message}`)
@@ -124,14 +165,17 @@ export const cardRepository = {
 
     // US-11: bulk update position within a column
     async updatePositions(updates: {id: string; position: number}[]): Promise<void> {
-        const {error} = await supabase
-            .from('cards')
-            .upsert(
-                updates.map(({id, position}) => ({id, position})),
-                {onConflict: 'id'}
+        const results = await Promise.all(
+            updates.map(({id, position}) =>
+                supabase
+                    .from('cards')
+                    .update({position})
+                    .eq('id', id)
             )
-        
-        if (error) throw new Error(`updatePositions failed: ${error.message}`)
+        )
+
+        const failed = results.find((result) => result.error)
+        if (failed?.error) throw new Error(`updatePositions failed: ${failed.error.message}`)
     },
 
     // US-11 & US-10: delete a single card
@@ -200,5 +244,50 @@ export const cardRepository = {
         }
 
         return Array.from(tallyMap.values())
+    },
+
+    async findGroupsByTrip(tripId: string): Promise<CardGroup[]> {
+        const {data, error} = await supabase
+            .from('card_groups')
+            .select('*')
+            .eq('trip_id', tripId)
+            .order('column_id', {ascending: true})
+            .order('position', {ascending: true})
+
+        if (isMissingGroupsTable(error)) return []
+        if (error) throw new Error(`findGroupsByTrip failed: ${error.message}`)
+        return data as CardGroup[]
+    },
+
+    async createGroup(payload: CreateCardGroupPayload): Promise<CardGroup> {
+        const {data, error} = await supabase
+            .from('card_groups')
+            .insert(payload)
+            .select()
+            .single()
+
+        if (error) throw new Error(`createGroup failed: ${error.message}`)
+        return data as CardGroup
+    },
+
+    async updateGroup(groupId: string, payload: UpdateCardGroupPayload): Promise<CardGroup> {
+        const {data, error} = await supabase
+            .from('card_groups')
+            .update(payload)
+            .eq('id', groupId)
+            .select()
+            .single()
+
+        if (error) throw new Error(`updateGroup failed: ${error.message}`)
+        return data as CardGroup
+    },
+
+    async deleteGroup(groupId: string): Promise<void> {
+        const {error} = await supabase
+            .from('card_groups')
+            .delete()
+            .eq('id', groupId)
+
+        if (error) throw new Error(`deleteGroup failed: ${error.message}`)
     }
 }
