@@ -72,6 +72,7 @@ export function CardItem({
     const [{ isDragging }, drag] = useDrag({
         type: DND_CARD,
         item: {
+            kind: 'card',
             cardId: card.id,
             sourceColumnId: columnId,
             sourceIndex: index,

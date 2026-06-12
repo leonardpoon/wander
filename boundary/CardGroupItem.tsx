@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { useDrop } from 'react-dnd'
+import { useDrag, useDrop } from 'react-dnd'
 import { ChevronDown, ChevronRight, Layers } from 'lucide-react'
 import { Card, CardGroup } from '../entity/Cards'
 import { CardCategoryOption } from '../entity/CardCategories'
@@ -7,6 +7,7 @@ import { CardItem } from './CardItem'
 import { CardDropZone } from './CardDropZone'
 
 const DND_CARD = 'CARD'
+const DND_GROUP = 'GROUP'
 
 interface CardGroupItemProps {
     group: CardGroup
@@ -20,6 +21,11 @@ interface CardGroupItemProps {
         targetPosition: number,
         targetGroupId?: string | null
     ) => Promise<void>
+    onMoveGroup: (
+        groupId: string,
+        targetColumnId: string,
+        targetPosition: number
+    ) => Promise<void>
     onAddCardToGroup: (cardId: string, groupId: string) => Promise<void>
     onRemoveCardFromGroup: (cardId: string) => Promise<void>
     onRenameGroup: (groupId: string, title: string) => Promise<void>
@@ -32,11 +38,13 @@ export function CardGroupItem({
     categoryOptions,
     onEditCard,
     onMoveCard,
+    onMoveGroup,
     onAddCardToGroup,
     onRemoveCardFromGroup,
     onRenameGroup,
 }: CardGroupItemProps) {
     const groupRef = useRef<HTMLDivElement>(null)
+    const dragHandleRef = useRef<HTMLDivElement>(null)
     const [collapsed, setCollapsed] = useState(false)
     const [editingTitle, setEditingTitle] = useState(false)
     const [draftTitle, setDraftTitle] = useState(group.title)
@@ -61,7 +69,21 @@ export function CardGroupItem({
         }),
     })
 
+    const [{ isDragging }, drag] = useDrag({
+        type: DND_GROUP,
+        item: {
+            kind: 'group',
+            groupId: group.id,
+            sourceColumnId: columnId,
+            sourcePosition: group.position,
+        },
+        collect: (monitor) => ({
+            isDragging: monitor.isDragging(),
+        }),
+    })
+
     drop(groupRef)
+    drag(dragHandleRef)
 
     return (
         <div
@@ -71,10 +93,11 @@ export function CardGroupItem({
                 background: `${group.color}12`,
                 border: `2px solid ${isOver ? group.color : `${group.color}55`}`,
                 boxShadow: isOver ? `0 0 0 3px ${group.color}22` : 'none',
+                opacity: isDragging ? 0.4 : 1,
                 padding: 8,
             }}
         >
-            <div className="flex items-center justify-between gap-2 px-1 pb-2">
+            <div ref={dragHandleRef} className="flex cursor-grab items-center justify-between gap-2 px-1 pb-2">
                 <div className="flex min-w-0 items-center gap-1.5">
                     <button
                         type="button"

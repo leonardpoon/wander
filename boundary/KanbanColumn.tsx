@@ -15,6 +15,7 @@ import { CardGroupItem } from './CardGroupItem'
 import { CardDropZone } from './CardDropZone'
 
 const DND_CARD = 'CARD'
+const DND_GROUP = 'GROUP'
 
 type TimelineItem =
     | { type: 'card'; id: string; position: number; card: Card; index: number }
@@ -37,6 +38,11 @@ interface KanbanColumnProps {
         targetPosition: number,
         targetGroupId?: string | null
     ) => Promise<void>
+    onMoveGroup: (
+        groupId: string,
+        targetColumnId: string,
+        targetPosition: number
+    ) => Promise<void>
     onCreateGroup: (sourceCardId: string, targetCardId: string) => Promise<void>
     onAddCardToGroup: (cardId: string, groupId: string) => Promise<void>
     onRemoveCardFromGroup: (cardId: string) => Promise<void>
@@ -55,6 +61,7 @@ export function KanbanColumn({
     onAddCard,
     onEditCard,
     onMoveCard,
+    onMoveGroup,
     onCreateGroup,
     onAddCardToGroup,
     onRemoveCardFromGroup,
@@ -64,14 +71,22 @@ export function KanbanColumn({
 
     // US-12: drop target — accepts dragged cards
     const [{ isOver }, drop] = useDrop({
-        accept: DND_CARD,
-        drop: (item: { cardId: string }, monitor) => {
+        accept: [DND_CARD, DND_GROUP],
+        drop: (item: { cardId?: string; groupId?: string }, monitor) => {
             if (monitor.didDrop()) return
             // drop at the end of the column
-            const lastPosition = cards.length > 0
-                ? Math.max(...cards.map((card) => card.position))
+            const timelinePositions = [
+                ...cards.map((card) => card.position),
+                ...groups.map((group) => group.position),
+            ]
+            const lastPosition = timelinePositions.length > 0
+                ? Math.max(...timelinePositions)
                 : -1
-            onMoveCard(item.cardId, columnId, lastPosition + 1, null)
+            if (item.groupId) {
+                onMoveGroup(item.groupId, columnId, lastPosition + 1)
+                return
+            }
+            if (item.cardId) onMoveCard(item.cardId, columnId, lastPosition + 1, null)
         },
         collect: (monitor) => ({
             isOver: monitor.isOver(),
@@ -231,6 +246,7 @@ export function KanbanColumn({
                     position={timelineItems[0]?.position ?? 0}
                     groupId={null}
                     onMoveCard={onMoveCard}
+                    onMoveGroup={onMoveGroup}
                 />
                 {timelineItems.map((item) => (
                     <div key={`${item.type}:${item.id}`} className="flex flex-col" style={{ gap: 8 }}>
@@ -252,6 +268,7 @@ export function KanbanColumn({
                                 categoryOptions={categoryOptions}
                                 onEditCard={onEditCard}
                                 onMoveCard={onMoveCard}
+                                onMoveGroup={onMoveGroup}
                                 onAddCardToGroup={onAddCardToGroup}
                                 onRemoveCardFromGroup={onRemoveCardFromGroup}
                                 onRenameGroup={onRenameGroup}
@@ -262,6 +279,7 @@ export function KanbanColumn({
                             position={item.position + 1}
                             groupId={null}
                             onMoveCard={onMoveCard}
+                            onMoveGroup={onMoveGroup}
                         />
                     </div>
                 ))}

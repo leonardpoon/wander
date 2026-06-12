@@ -316,6 +316,29 @@ export const cardService = {
         return await cardRepository.updateGroup(groupId, payload)
     },
 
+    async moveGroup(
+        groupId: string,
+        targetColumnId: string,
+        targetPosition: number
+    ): Promise<CardGroup> {
+        const group = await cardRepository.findGroupById(groupId)
+        if (!group) throw new Error('Group not found')
+
+        const groupCards = (await cardRepository.findByColumn(group.column_id))
+            .filter((card) => card.group_id === groupId)
+
+        const movedGroup = await cardRepository.updateGroup(groupId, {
+            column_id: targetColumnId,
+            position: targetPosition,
+        })
+
+        await Promise.all(groupCards.map((card) =>
+            cardRepository.updateCard(card.id, { column_id: targetColumnId })
+        ))
+
+        return movedGroup
+    },
+
     async deleteGroup(groupId: string): Promise<void> {
         await cardRepository.deleteGroup(groupId)
     },

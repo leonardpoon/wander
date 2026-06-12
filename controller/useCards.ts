@@ -47,6 +47,7 @@ export function useCards(tripId: string | null) {
         updateCardGroup,
         removeCardGroup,
         moveCardOptimistic,
+        moveGroupOptimistic,
         setActiveCard,
         setVoteTallies,
         updateVoteTally,
@@ -431,6 +432,29 @@ export function useCards(tripId: string | null) {
         setTodoColumns(created)
     }, [tripId])
 
+    const moveGroup = useCallback(async (
+        groupId: string,
+        targetColumnId: string,
+        targetPosition: number
+    ) => {
+        try {
+            setError(null)
+            moveGroupOptimistic(groupId, targetColumnId, targetPosition)
+            await cardService.moveGroup(groupId, targetColumnId, targetPosition)
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to move group')
+            if (tripId) {
+                const [correctedCards, correctedGroups] = await Promise.all([
+                    cardService.getCardsByTrip(tripId),
+                    cardService.getGroupsByTrip(tripId),
+                ])
+                setCards(correctedCards)
+                setCardGroups(correctedGroups)
+            }
+            throw err
+        }
+    }, [tripId])
+
     function getNextGroupColor(): string {
         return GROUP_COLORS[cardGroups.length % GROUP_COLORS.length]
     }
@@ -715,6 +739,7 @@ export function useCards(tripId: string | null) {
         createCard,
         editCard,
         moveCard,
+        moveGroup,
         createGroupFromCards,
         addCardToGroup,
         removeCardFromGroup,

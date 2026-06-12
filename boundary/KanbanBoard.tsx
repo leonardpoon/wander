@@ -49,6 +49,7 @@ export function KanbanBoard({
         createCard,
         editCard,
         moveCard,
+        moveGroup,
         createGroupFromCards,
         addCardToGroup,
         removeCardFromGroup,
@@ -132,6 +133,7 @@ export function KanbanBoard({
                             onAddCard={() => handleAddCard(col.id)}
                             onEditCard={handleEditCard}
                             onMoveCard={moveCard}
+                            onMoveGroup={moveGroup}
                             onCreateGroup={createGroupFromCards}
                             onAddCardToGroup={addCardToGroup}
                             onRemoveCardFromGroup={removeCardFromGroup}

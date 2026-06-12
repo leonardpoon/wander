@@ -50,6 +50,11 @@ interface CardState {
         targetPosition: number,
         targetGroupId?: string | null
     ) => void
+    moveGroupOptimistic: (
+        groupId: string,
+        targetColumnId: string,
+        targetPosition: number
+    ) => void
 
     setActiveCard: (card: Card | null) => void
     setVoteTallies: (tallies: CardVoteTally[]) => void
@@ -159,6 +164,20 @@ export const useCardStore = create<CardState>((set) => ({
             })
             return { cards }
         }),
+
+    moveGroupOptimistic: (groupId, targetColumnId, targetPosition) =>
+        set((state) => ({
+            cardGroups: state.cardGroups.map((group) =>
+                group.id === groupId
+                    ? { ...group, column_id: targetColumnId, position: targetPosition }
+                    : group
+            ),
+            cards: state.cards.map((card) =>
+                card.group_id === groupId
+                    ? { ...card, column_id: targetColumnId }
+                    : card
+            ),
+        })),
 
     setActiveCard: (card) => set({ activeCard: card }),
 
